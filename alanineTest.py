@@ -9,8 +9,25 @@ import calcIsotopologues as ci
 import fragmentAndSimulate as fas
 import solveSystem as ss
 
+'''
+This is a set of functions to quickly initalize alanine molecules based on input delta values and to simulate its fragmentation.
+'''
+
 def initializeAlanine(deltas, fragSubset = ['full','44'], printHeavy = True):
-    ##### INITIALIZE SITES #####
+    '''
+    Initializes alanine, returning a dataframe with basic information about the molecule as well as information about fragmentation.
+
+    Inputs:
+        deltas: A list of 6 M1 delta values, giving the delta values by site for the 13C, 17O, 15N, and 2H isotopes. The sites are defined in the IDList variable, below.
+        fragSubset: A list giving the subset of fragments to observe. If you are not observing all fragments, you may input only those you do observe. 
+        printHeavy: The user manually specifies delta 17O, and delta 18O is set via mass scaling (see basicDeltaOperations). If True, this will print out delta 18O.
+
+    Outputs:
+        df: A dataframe containing basic information about the molecule. 
+        expandedFrags: An ATOM depiction of each fragment, where an ATOM depiction has one entry for each atom (rather than for each site). See fragmentAndSimulate for details.
+        fragSubgeometryKeys: A list of strings, e.g. 44_01, 44_02, corresponding to each subgeometry of each fragment. A fragment will have multiple subgeometries if there are multiple fragmentation pathways to form it.
+        fragmentationDictionary: A dictionary like the allFragments variable, but only including the subset of fragments selected by fragSubset.
+    '''
     IDList = ['Calphabeta','Ccarboxyl','Ocarboxyl','Namine','Hretained','Hlost']
     elIDs = ['C','C','O','N','H','H']
     numberAtSite = [2,1,2,1,6,2]
@@ -50,7 +67,31 @@ def initializeAlanine(deltas, fragSubset = ['full','44'], printHeavy = True):
 def simulateMeasurement(df, fragmentationDictionary, expandedFrags, fragSubgeometryKeys, abundanceThreshold = 0, UValueList = [],
                         massThreshold = 1, clumpD = {}, outputPath = None, disableProgress = False, calcFF = False, fractionationFactors = {}, omitMeasurements = {}, ffstd = 0.05, unresolvedDict = {}, outputFull = False):
     '''
-    clumpD currently only works for mass 1 substitutions
+    Simulates M+N measurements of an alanine molecule with input deltas specified by the input dataframe df. 
+
+    Inputs:
+        df: A dataframe containing basic information about the molecule. 
+        expandedFrags: An ATOM depiction of each fragment, where an ATOM depiction has one entry for each atom (rather than for each site). See fragmentAndSimulate for details.
+        fragSubgeometryKeys: A list of strings, e.g. 44_01, 44_02, corresponding to each subgeometry of each fragment. A fragment will have multiple subgeometries if there are multiple fragmentation pathways to form it.
+        fragmentationDictionary: A dictionary like the allFragments variable, but only including the subset of fragments selected by fragSubset.
+        abundanceThreshold: A float; Does not include measurements below this M+N relative abundance, i.e. assuming they will not be  measured due to low abundance. 
+        UValueList: A list giving specific substitutions to calculate molecular average U values for ('13C', '15N', etc.)
+        massThreshold: An integer; will calculate M+N relative abundances for N <= massThreshold
+        clumpD: Specifies information about clumps to add; otherwise the isotome follows the stochastic assumption. Currently works only for mass 1 substitutions (e.g. 1717, 1317, etc.) See ci.introduceClump for details.
+        outputPath: A string, e.g. 'output', or None. If it is a string, outputs the simulated spectrum as a json. 
+        disableProgress: Disables tqdm progress bars when True.
+        calcFF: When True, computes a new set of fractionation factors for this measurement.
+        fractionationFactors: A dictionary, specifying a fractionation factor to apply to each ion beam. This is used to apply fractionation factors calculated previously to this predicted measurement (e.g. for a sample/standard comparison with the same experimental fractionation)
+        omitMeasurements: omitMeasurements: A dictionary, {}, specifying measurements which I will not observed. For example, omitMeasurements = {'M1':{'61':'D'}} would mean I do not observe the D ion beam of the 61 fragment of the M+1 experiment, regardless of its abundance. 
+        ffstd: A float; if new fractionation factors are calculated, they are pulled from a normal distribution centered around 1, with this standard deviation.
+        unresolvedDict: A dictionary, specifying which unresolved ion beams add to each other.
+        outputFull: A boolean. Typically False, in which case beams that are not observed are culled from the dictionary. If True, includes this information; this should only be used for debugging, and will likely break the solver routine. 
+        
+    Outputs:
+        predictedMeasurement: A dictionary giving information from the M+N measurements. 
+        MN: A dictionary where keys are mass selections ("M1", "M2") and values are dictionaries giving information about the isotopologues of each mass selection.
+        fractionationFactors: The calculated fractionation factors for this measurement (empty unless calcFF == True)
+
     '''
     
     byAtom = ci.inputToAtomDict(df, disable = disableProgress)
@@ -60,7 +101,7 @@ def simulateMeasurement(df, fragmentationDictionary, expandedFrags, fragSubgeome
         bySub = ci.calcSubDictionary(byAtom, df, atomInput = True)
     else:
         print("Adding clumps")
-        stochD = copy.deepcopy(byCondensed)
+        stochD = copy.deepcopy(byAtom)
         
         for clumpNumber, clumpInfo in clumpD.items():
             byAtom = ci.introduceClump(byAtom, clumpInfo['Sites'], clumpInfo['Amount'], df)
@@ -92,112 +133,3 @@ def simulateMeasurement(df, fragmentationDictionary, expandedFrags, fragSubgeome
         f.close()
         
     return predictedMeasurement, MN, fractionationFactors
-
-def updateAbundanceCorrection(latestDeltas, fragSubset, fragmentationDictionary, expandedFrags, fragSubgeometryKeys, processStandard, processSample, isotopologuesDict, UValuesSmp, df,
-                              deviation = 6, NUpdates = 30, breakCondition = 1, perturbTheoryPAAmt = 0.002,
-                              experimentalPACorrectList = [],
-                              extremeVals = {},
-                              abundanceThreshold = 0, 
-                              massThreshold = 1, 
-                              omitMeasurements = {}, 
-                              unresolvedDict = {},
-                              UMNSub = ['13C'],
-                              N = 100,
-                             setSpreadByExtreme = False,
-                             oACorrectBounds = False):
-    
-    thispADict = {'residual':[],
-                  'delta':[],
-                  'pA':[],
-                  'relDelta':[],
-                  'relDeltaErr':[],
-                  'Histogram':[]}
-    
-    for i in range(NUpdates):
-        oldDeltas = latestDeltas
-        M1Df, expandedFrags, fragSubgeometryKeys, fragmentationDictionary = initializeAlanine(latestDeltas, fragSubset,
-                                                                                                  printHeavy = False)
-
-        predictedMeasurementUpdate, MNDictUpdate, FFUpdate = simulateMeasurement(M1Df, fragmentationDictionary, 
-                                                           expandedFrags,
-                                                           fragSubgeometryKeys,
-                                                           abundanceThreshold = abundanceThreshold,
-                                                           massThreshold = massThreshold,
-                                                           calcFF = False, 
-                                                           outputPath = None,
-                                                           disableProgress = True,
-                                                           fractionationFactors = {},
-                                                           omitMeasurements = omitMeasurements,
-                                                           unresolvedDict = unresolvedDict)
-
-
-        pACorrectionUpdate = ss.percentAbundanceCorrectTheoretical(predictedMeasurementUpdate, processSample, 
-                                                         massThreshold = massThreshold)
-
-        #Use results to inform later OA corrections        
-        explicitOACorrect = {}
-
-        for MNKey, MNData in pACorrectionUpdate.items():
-            if MNKey not in explicitOACorrect:
-                explicitOACorrect[MNKey] = {}
-            for fragKey, fragData in MNData.items():
-                if fragKey not in explicitOACorrect[MNKey]:
-                    explicitOACorrect[MNKey][fragKey] = {}
-                    
-                if fragKey in extremeVals:
-                    #use to set bounds
-                    explicitOACorrect[MNKey][fragKey]['Bounds'] = extremeVals[fragKey]
-                    
-                    #use bounds to pick standard deviation intelligently
-                    vals = (fragData, extremeVals[fragKey][0], extremeVals[fragKey][1])
-                    spread = max(vals) - min(vals) 
-                    onesigma = spread / deviation
-
-                    explicitOACorrect[MNKey][fragKey]['Mu,Sigma'] = (fragData, onesigma)
-                    
-                else:
-                    explicitOACorrect[MNKey][fragKey]['Mu,Sigma'] = (fragData, fragData * perturbTheoryPAAmt)
-                
-                
-
-        M1Results = ss.M1MonteCarlo(processStandard, processSample, pACorrectionUpdate, isotopologuesDict,
-                                    fragmentationDictionary, perturbTheoryPAAmt = perturbTheoryPAAmt,
-                                    experimentalPACorrectList = experimentalPACorrectList,
-                                    N = N, GJ = False, debugMatrix = False, disableProgress = True,
-                                   storePerturbedSamples = False, storepACorrect = True, 
-                                   explicitOACorrect = explicitOACorrect, perturbOverrideList = ['M1'])
-        
-        processedResults = ss.processM1MCResults(M1Results, UValuesSmp, isotopologuesDict, df, disableProgress = True,
-                                        UMNSub = UMNSub)
-    
-        ss.updateSiteSpecificDfM1MC(processedResults, df)
-        
-        M1Df = df.copy()
-        M1Df['deltas'] = M1Df['PDB etc. Deltas']
-        
-        thispADict['pA'].append(copy.deepcopy(pACorrectionUpdate['M1']))
-
-        thispADict['delta'].append(list(M1Df['deltas']))
-        
-        residual = ((np.array(M1Df['deltas']) - np.array(oldDeltas))**2).sum()
-        thispADict['residual'].append(residual)
-        latestDeltas = M1Df['deltas'].values
-        
-        thispADict['relDelta'].append(M1Df['Relative Deltas'].values)
-        thispADict['relDeltaErr'].append(M1Df['Relative Deltas Error'].values)
-        print(residual)
-        
-        if i % 10 == 0 or residual <= breakCondition:
-            correctVals = {'full':[],
-                       '44':[]}
-        
-            for res in M1Results['Extra Info']['pA Correct']:
-                correctVals['full'].append(res['full'])
-                correctVals['44'].append(res['44'])
-
-            thispADict['Histogram'].append(copy.deepcopy(correctVals))
-        
-        if residual <= breakCondition:
-            break
-            
-    return M1Results, thispADict
