@@ -7,11 +7,9 @@ import pandas as pd
 import basicDeltaOperations as op
 import calcIsotopologues as ci
 import fragmentAndSimulate as fas
+import solveSystem as ss
 
 def initializeAlanine(deltas, fragSubset = ['full','44'], printHeavy = True):
-    '''
-    This is a new comment.
-    '''
     ##### INITIALIZE SITES #####
     IDList = ['Calphabeta','Ccarboxyl','Ocarboxyl','Namine','Hretained','Hlost']
     elIDs = ['C','C','O','N','H','H']
@@ -50,7 +48,7 @@ def initializeAlanine(deltas, fragSubset = ['full','44'], printHeavy = True):
     return df, expandedFrags, fragSubgeometryKeys, fragmentationDictionary
 
 def simulateMeasurement(df, fragmentationDictionary, expandedFrags, fragSubgeometryKeys, abundanceThreshold = 0, UValueList = [],
-                        molecularAvgMassThreshold = 4, MNMassThreshold = 4, clumpD = {}, outputPath = None, disableProgress = False, calcFF = False, fractionationFactors = {}, omitMeasurements = {}, ffstd = 0.05, unresolvedDict = {}, outputFull = False):
+                        massThreshold = 1, clumpD = {}, outputPath = None, disableProgress = False, calcFF = False, fractionationFactors = {}, omitMeasurements = {}, ffstd = 0.05, unresolvedDict = {}, outputFull = False):
     '''
     clumpD currently only works for mass 1 substitutions
     '''
@@ -75,10 +73,10 @@ def simulateMeasurement(df, fragmentationDictionary, expandedFrags, fragSubgeome
     #Initialize Measurement output
     print("Simulating Measurement")
     allMeasurementInfo = {}
-    allMeasurementInfo = fas.UValueMeasurement(bySub, allMeasurementInfo, massThreshold = molecularAvgMassThreshold,
+    allMeasurementInfo = fas.UValueMeasurement(bySub, allMeasurementInfo, massThreshold = massThreshold,
                                               subList = UValueList)
 
-    MN = ci.massSelections(byAtom, massThreshold = MNMassThreshold)
+    MN = ci.massSelections(byAtom, massThreshold = massThreshold)
     MN = fas.trackMNFragments(MN, expandedFrags, fragSubgeometryKeys, df, unresolvedDict = unresolvedDict)
         
     predictedMeasurement, fractionationFactors = fas.predictMNFragmentExpt(allMeasurementInfo, MN, expandedFrags, 
@@ -94,3 +92,112 @@ def simulateMeasurement(df, fragmentationDictionary, expandedFrags, fragSubgeome
         f.close()
         
     return predictedMeasurement, MN, fractionationFactors
+
+def updateAbundanceCorrection(latestDeltas, fragSubset, fragmentationDictionary, expandedFrags, fragSubgeometryKeys, processStandard, processSample, isotopologuesDict, UValuesSmp, df,
+                              deviation = 6, NUpdates = 30, breakCondition = 1, perturbTheoryPAAmt = 0.002,
+                              experimentalPACorrectList = [],
+                              extremeVals = {},
+                              abundanceThreshold = 0, 
+                              massThreshold = 1, 
+                              omitMeasurements = {}, 
+                              unresolvedDict = {},
+                              UMNSub = ['13C'],
+                              N = 100,
+                             setSpreadByExtreme = False,
+                             oACorrectBounds = False):
+    
+    thispADict = {'residual':[],
+                  'delta':[],
+                  'pA':[],
+                  'relDelta':[],
+                  'relDeltaErr':[],
+                  'Histogram':[]}
+    
+    for i in range(NUpdates):
+        oldDeltas = latestDeltas
+        M1Df, expandedFrags, fragSubgeometryKeys, fragmentationDictionary = initializeAlanine(latestDeltas, fragSubset,
+                                                                                                  printHeavy = False)
+
+        predictedMeasurementUpdate, MNDictUpdate, FFUpdate = simulateMeasurement(M1Df, fragmentationDictionary, 
+                                                           expandedFrags,
+                                                           fragSubgeometryKeys,
+                                                           abundanceThreshold = abundanceThreshold,
+                                                           massThreshold = massThreshold,
+                                                           calcFF = False, 
+                                                           outputPath = None,
+                                                           disableProgress = True,
+                                                           fractionationFactors = {},
+                                                           omitMeasurements = omitMeasurements,
+                                                           unresolvedDict = unresolvedDict)
+
+
+        pACorrectionUpdate = ss.percentAbundanceCorrectTheoretical(predictedMeasurementUpdate, processSample, 
+                                                         massThreshold = massThreshold)
+
+        #Use results to inform later OA corrections        
+        explicitOACorrect = {}
+
+        for MNKey, MNData in pACorrectionUpdate.items():
+            if MNKey not in explicitOACorrect:
+                explicitOACorrect[MNKey] = {}
+            for fragKey, fragData in MNData.items():
+                if fragKey not in explicitOACorrect[MNKey]:
+                    explicitOACorrect[MNKey][fragKey] = {}
+                    
+                if fragKey in extremeVals:
+                    #use to set bounds
+                    explicitOACorrect[MNKey][fragKey]['Bounds'] = extremeVals[fragKey]
+                    
+                    #use bounds to pick standard deviation intelligently
+                    vals = (fragData, extremeVals[fragKey][0], extremeVals[fragKey][1])
+                    spread = max(vals) - min(vals) 
+                    onesigma = spread / deviation
+
+                    explicitOACorrect[MNKey][fragKey]['Mu,Sigma'] = (fragData, onesigma)
+                    
+                else:
+                    explicitOACorrect[MNKey][fragKey]['Mu,Sigma'] = (fragData, fragData * perturbTheoryPAAmt)
+                
+                
+
+        M1Results = ss.M1MonteCarlo(processStandard, processSample, pACorrectionUpdate, isotopologuesDict,
+                                    fragmentationDictionary, perturbTheoryPAAmt = perturbTheoryPAAmt,
+                                    experimentalPACorrectList = experimentalPACorrectList,
+                                    N = N, GJ = False, debugMatrix = False, disableProgress = True,
+                                   storePerturbedSamples = False, storepACorrect = True, 
+                                   explicitOACorrect = explicitOACorrect, perturbOverrideList = ['M1'])
+        
+        processedResults = ss.processM1MCResults(M1Results, UValuesSmp, isotopologuesDict, df, disableProgress = True,
+                                        UMNSub = UMNSub)
+    
+        ss.updateSiteSpecificDfM1MC(processedResults, df)
+        
+        M1Df = df.copy()
+        M1Df['deltas'] = M1Df['PDB etc. Deltas']
+        
+        thispADict['pA'].append(copy.deepcopy(pACorrectionUpdate['M1']))
+
+        thispADict['delta'].append(list(M1Df['deltas']))
+        
+        residual = ((np.array(M1Df['deltas']) - np.array(oldDeltas))**2).sum()
+        thispADict['residual'].append(residual)
+        latestDeltas = M1Df['deltas'].values
+        
+        thispADict['relDelta'].append(M1Df['Relative Deltas'].values)
+        thispADict['relDeltaErr'].append(M1Df['Relative Deltas Error'].values)
+        print(residual)
+        
+        if i % 10 == 0 or residual <= breakCondition:
+            correctVals = {'full':[],
+                       '44':[]}
+        
+            for res in M1Results['Extra Info']['pA Correct']:
+                correctVals['full'].append(res['full'])
+                correctVals['44'].append(res['44'])
+
+            thispADict['Histogram'].append(copy.deepcopy(correctVals))
+        
+        if residual <= breakCondition:
+            break
+            
+    return M1Results, thispADict
