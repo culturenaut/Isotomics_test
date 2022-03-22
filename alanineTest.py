@@ -9,6 +9,9 @@ import calcIsotopologues as ci
 import fragmentAndSimulate as fas
 
 def initializeAlanine(deltas, fragSubset = ['full','44'], printHeavy = True):
+    '''
+    This is a new comment.
+    '''
     ##### INITIALIZE SITES #####
     IDList = ['Calphabeta','Ccarboxyl','Ocarboxyl','Namine','Hretained','Hlost']
     elIDs = ['C','C','O','N','H','H']
