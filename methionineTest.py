@@ -62,7 +62,7 @@ def initializeMethionine(deltas, fragSubset = ['full','133','104','102','88','74
         print("Delta 18O")
         print(del18)
     
-    return df, fragmentationDictionary, expandedFrags, fragKeys, 
+    return df, expandedFrags, fragKeys, fragmentationDictionary
 
 def simulateMeasurement(df, fragmentationDictionary, expandedFrags, fragKeys, abundanceThreshold = 0, UValueList = [],
                         massThreshold = 4, clumpD = {}, outputPath = None, disableProgress = False, calcFF = False, fractionationFactors = {}, omitMeasurements = {}, ffstd = 0.05, unresolvedDict = {}, outputFull = False):
