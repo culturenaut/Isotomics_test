@@ -157,7 +157,7 @@ def simulateMeasurement(df, fragmentationDictionary, expandedFrags, fragKeys, ab
 def updateAbundanceCorrection(latestDeltas, fragSubset, fragmentationDictionary, expandedFrags, 
 fragSubgeometryKeys, processStandard, processSample, isotopologuesDict, UValuesSmp, df,
 NUpdates = 30, breakCondition = 1, perturbTheoryOAmt = 0.002,
-                              experimentalPACorrectList = [],
+                              experimentalOCorrectList = [],
                               abundanceThreshold = 0, 
                               massThreshold = 1, 
                               omitMeasurements = {}, 
@@ -194,9 +194,9 @@ NUpdates = 30, breakCondition = 1, perturbTheoryOAmt = 0.002,
         breakCondition: Each iteration, a residual is calculated as the sum of squares between all delta values. If that sums is <break condition, the routine ends. 
         perturbTheoryOAmt: Each O correction is given as a mean and a sigma. Then for each iteration of the Monte Carlo, we draw a new factor from this distribution. This parameter determines the relative width, e.g. sigma = mean * perturbTheoryOAmt
         N = 100: The number of iterations for each MN Monte Carlo. E.g., if NUPdates is 30 and N is 100, we recalculate the methionine spectrum 30 times. Each iteration, we solve for site specific values using a monte carlo routine with N = 100. 
-        UMNSub: Sets the specific substitutions that we will use molecular average U values from to calculate UMN. Otherwise it will use all molecular average U values for that UMN. Recommended to use--the procedure only works for substitions that are totally solved for. For example, if one 13C 13C isotopologue is not solved for precisely in fractional abundance space, we should not use 13C13C in the UMN routine. The best candidates tend to be abundant things--36S, 18O, 13C, 34S, and so forth.
+        UMNSub: Sets the specific substitutions that we will use molecular average U values from to calculate UMN. Otherwise it will use all molecular average U values for that UMN. Recommended to use--the procedure only works for substitions that are totally solved for. For example, if one 13C 13C isotopologue is not solved for precisely in M+N relative abundance space, we should not use 13C13C in the UMN routine. The best candidates tend to be abundant things--36S, 18O, 13C, 34S, and so forth.
         abundanceThreshold, massThreshold, omitMeasurements, unresolvedDict:  See simulateMeasurement; set these parameters for each simulated dataset.  
-        experimentalPACorrectList: A list, containing information about which peaks to use experimental correction for. See solveSystem.perturbSample.
+        experimentalOCorrectList: A list, containing information about which peaks to use experimental correction for. See solveSystem.perturbSample.
 
         Outputs:
             M1Results: A dataframe giving the final results of the iterated correction process.
@@ -206,7 +206,7 @@ NUpdates = 30, breakCondition = 1, perturbTheoryOAmt = 0.002,
     #Initialize dictionary to track output of iterated correction process.
     thisODict = {'residual':[],
                   'delta':[],
-                  'pA':[],
+                  'O':[],
                   'relDelta':[],
                   'relDeltaErr':[],
                   'Histogram':[]}
@@ -249,9 +249,9 @@ NUpdates = 30, breakCondition = 1, perturbTheoryOAmt = 0.002,
 
         M1Results = ss.M1MonteCarlo(processStandard, processSample, OCorrectionUpdate, isotopologuesDict,
                                     fragmentationDictionary, perturbTheoryOAmt = perturbTheoryOAmt,
-                                    experimentalPACorrectList = experimentalPACorrectList,
+                                    experimentalOCorrectList = experimentalOCorrectList,
                                     N = N, GJ = False, debugMatrix = False, disableProgress = True,
-                                   storePerturbedSamples = False, storepACorrect = True, 
+                                   storePerturbedSamples = False, storeOCorrect = True, 
                                    explicitOCorrect = explicitOCorrect, perturbOverrideList = ['M1'])
         
         processedResults = ss.processM1MCResults(M1Results, UValuesSmp, isotopologuesDict, df, disableProgress = True,
@@ -262,7 +262,7 @@ NUpdates = 30, breakCondition = 1, perturbTheoryOAmt = 0.002,
         M1Df = df.copy()
         M1Df['deltas'] = M1Df['PDB etc. Deltas']
         
-        thisODict['pA'].append(copy.deepcopy(OCorrectionUpdate['M1']))
+        thisODict['O'].append(copy.deepcopy(OCorrectionUpdate['M1']))
 
         thisODict['delta'].append(list(M1Df['deltas']))
         

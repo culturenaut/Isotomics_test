@@ -94,13 +94,13 @@ def perturbSampleCorrectionFactors(perturbedSample, perturbedStandard, renormali
             
     return correctedSample
             
-def perturbSamplePACorrection(correctedSample, pACorrection, perturbOverrideList = []):
+def perturbSampleOCorrection(correctedSample, OCorrection, perturbOverrideList = []):
     '''
-    Applies percent abundance correction factors to the sample (see TEST 6-8). These factors scale the observed percent abundances to correct for unobserved peaks. 
+    Applies M+N Relative abundance correction factors to the sample (see TEST 6-8). These factors scale the observed M+N Relative abundances to correct for unobserved peaks. 
     
     Inputs:
         correctedSample: A dictionary, the output of perturbSampleCorrectionFactors. Keys are mass selections, then fragment keys. Contains information about observed abundance and substitutions. 
-        pACorrection: A dictionary, giving a percent abundance correction factor for each fragment of each mass selection.
+        OCorrection: A dictionary, giving a M+N Relative abundance correction factor for each fragment of each mass selection.
         perturbOverrideList: For M1 Iterated correction, do not want to use all mass selections, only M1; set to ['M1']
         
     Outputs:
@@ -115,22 +115,22 @@ def perturbSamplePACorrection(correctedSample, pACorrection, perturbOverrideList
                 pACorrectedSample[massSelection][fragKey] = {}
 
                 observed = fragData['Observed Abundance']
-                correctedPA = observed * pACorrection[massSelection][fragKey]
+                correctedPA = observed * OCorrection[massSelection][fragKey]
 
                 pACorrectedSample[massSelection][fragKey] = {'Observed Abundance': correctedPA,
                                                            'Subs': fragData['Subs']}
             
     return pACorrectedSample
 
-def perturbSample(sampleData, perturbedStandard, pACorrection, experimentalPACorrectList = [], correctionFactors = True, abundanceCorrect = True, explicitOACorrect = {}, perturbOverrideList = []):
+def perturbSample(sampleData, perturbedStandard, OCorrection, experimentalOCorrectList = [], correctionFactors = True, abundanceCorrect = True, explicitOACorrect = {}, perturbOverrideList = []):
     '''
-    Takes sample data and perturbs it multiple ways--first perturbs experimental error, then applies (fractionation) correction factors, then applies percent abundance correction factors. Finally processes the perturbed sample into a dataframe to be looped into the matrix solver. 
+    Takes sample data and perturbs it multiple ways--first perturbs experimental error, then applies (fractionation) correction factors, then applies M+N Relative abundance correction factors. Finally processes the perturbed sample into a dataframe to be looped into the matrix solver. 
     
     Inputs:
         sampleData: A dictionary; keys are mass selections ("M1", "M2") then fragment Keys ("full", "44"), then information about substitutions, observed abundances, and errors. 
         perturbedStandard: A dictionary, the output of perturbStandard. Keys are mass selections, then fragment keys. Contains information about the correction factors for each peak.
-        pACorrection: A dictionary, giving a percent abundance correction factor for each fragment of each mass selection. 
-        experimentalPACorrectList: A list, containing information about which peaks to use experimental, rather than theoretical, percent abundance corrections.
+        OCorrection: A dictionary, giving a M+N Relative abundance correction factor for each fragment of each mass selection. 
+        experimentalOCorrectList: A list, containing information about which peaks to use experimental, rather than theoretical, M+N Relative abundance corrections.
         correctionFactors: A boolean, determines whether to apply sample/standard correction factors.
         abundanceCorrect: A boolean, determines whether to apply observed abundance correction factors. 
         perturbOverrideList: perturbSample will automatically perturb all sample acquisitions (M1, M2, M3, M4); in some cases, e.g. when doing an iterated correction for M1, we do not want to perturb all, only M1. This can be specified with this list. (E.g. ['M1']) 
@@ -144,8 +144,8 @@ def perturbSample(sampleData, perturbedStandard, pACorrection, experimentalPACor
         perturbedSample = perturbSampleCorrectionFactors(perturbedSample, perturbedStandard, renormalize = abundanceCorrect)
     
     if abundanceCorrect:
-        for c in experimentalPACorrectList:
-            pACorrection = experimentalPACorrection(c['MNKey'], c['fragToCorrect'], c['subToCorrect'], perturbedSample, pACorrection, c['fragsToBenchmarkFrom'])
+        for c in experimentalOCorrectList:
+            OCorrection = experimentalOCorrection(c['MNKey'], c['fragToCorrect'], c['subToCorrect'], perturbedSample, OCorrection, c['fragsToBenchmarkFrom'])
             
             MNKey = c['MNKey']
             fragKey = c['fragToCorrect']
@@ -153,13 +153,13 @@ def perturbSample(sampleData, perturbedStandard, pACorrection, experimentalPACor
             if MNKey in explicitOACorrect:
                 if fragKey in explicitOACorrect[MNKey]:
                     if 'Bounds' in explicitOACorrect[MNKey][fragKey]:
-                        if pACorrection[MNKey][fragKey] <= explicitOACorrect[MNKey][fragKey]['Bounds'][0]:
-                            pACorrection[MNKey][fragKey] = explicitOACorrect[MNKey][fragKey]['Bounds'][0]
+                        if OCorrection[MNKey][fragKey] <= explicitOACorrect[MNKey][fragKey]['Bounds'][0]:
+                            OCorrection[MNKey][fragKey] = explicitOACorrect[MNKey][fragKey]['Bounds'][0]
 
-                        if pACorrection[MNKey][fragKey] >= explicitOACorrect[MNKey][fragKey]['Bounds'][1]:
-                            pACorrection[MNKey][fragKey] = explicitOACorrect[MNKey][fragKey]['Bounds'][1]
+                        if OCorrection[MNKey][fragKey] >= explicitOACorrect[MNKey][fragKey]['Bounds'][1]:
+                            OCorrection[MNKey][fragKey] = explicitOACorrect[MNKey][fragKey]['Bounds'][1]
 
-        perturbedSample = perturbSamplePACorrection(perturbedSample, pACorrection, perturbOverrideList = perturbOverrideList)
+        perturbedSample = perturbSampleOCorrection(perturbedSample, OCorrection, perturbOverrideList = perturbOverrideList)
 
         
     #Prepare to output as dictionary of dataFrames
@@ -179,24 +179,24 @@ def perturbSample(sampleData, perturbedStandard, pACorrection, experimentalPACor
 
     return measurementData
 
-def percentAbundanceCorrectTheoretical(predictedMeasurement, processSample, massThreshold = 4, debug = False):
+def OValueCorrectTheoretical(predictedMeasurement, processSample, massThreshold = 4, debug = False):
     '''
-    A theoretical method of calculating percent abundance correction factors. Looks at predicted measurements from a stochastic distribution and input deltas and sees how much M+N percent abundance is actually observed in the measurement.
+    A theoretical method of calculating M+N Relative abundance correction factors. Looks at predicted measurements from a stochastic distribution and input deltas and sees how much M+N relative abundance is actually observed in the measurement.
     
     Inputs:
         predictedMeasurement: A computed dataset for some input delta values. Should be a perfect dataset. 
-        processSample: The processed sample input. Checks which peaks were actually observed in order to determine the size of the percent abundance correction. 
-        massThreshold: The highest M+N experiment to compute percent abundance corrections for. 
+        processSample: The processed sample input. Checks which peaks were actually observed in order to determine the size of the M+N Relative abundance correction. 
+        massThreshold: The highest M+N experiment to compute M+N Relative abundance corrections for. 
         debug: If true, prints the peaks from predicted measurement and if they were found successfully. 
         
     Outputs:
-        percentAbundanceCorrection: A dictionary, where keys are mass selections, then fragment keys, keyed to floats, where the float gives the percent abundance correction for that fragment.         
+        OValueCorrection: A dictionary, where keys are mass selections, then fragment keys, keyed to floats, where the float gives the M+N Relative abundance correction for that fragment.         
     '''
-    percentAbundanceCorrection = {}
+    OValueCorrection = {}
     for i in range(1, massThreshold+1):
-        percentAbundanceCorrection['M' + str(i)] = {}
+        OValueCorrection['M' + str(i)] = {}
 
-    for MNKey in percentAbundanceCorrection.keys():
+    for MNKey in OValueCorrection.keys():
         for fragKey, fragInfo in predictedMeasurement[MNKey].items():
             relAbund = 0
             for subKey, subData in fragInfo.items():
@@ -211,25 +211,25 @@ def percentAbundanceCorrectTheoretical(predictedMeasurement, processSample, mass
                                 print("FOUND")
                                 print(relAbund)
             #round to avoid floating point error
-            percentAbundanceCorrection[MNKey][fragKey] = round(relAbund,8)    
+            OValueCorrection[MNKey][fragKey] = round(relAbund,8)    
             
-    return percentAbundanceCorrection
+    return OValueCorrection
 
-def modifyPercentAbundanceCorrection(percentAbundanceCorrection, variablePACorrect, MNKey, explicitOACorrect = {}, amount = 0.002):
+def modifyOValueCorrection(OValueCorrection, variableOCorrect, MNKey, explicitOACorrect = {}, amount = 0.002):
     '''
-    Perturbs the percent abundance correction factors, for example if they are only approximately known. 
+    Perturbs the M+N Relative abundance correction factors, for example if they are only approximately known. 
     
     Inputs: 
-        percentAbundanceCorrection: A dictionary, where keys are mass selections and values are dictionaries; in each dictionary, the keys are fragment keys and values are floats, where the float gives the observed abundance correction for that fragment.  
-        variablePACorrect: A copy of the percentAbundanceCorrection dictionary, so we are not modifying it directly. 
+        OValueCorrection: A dictionary, where keys are mass selections and values are dictionaries; in each dictionary, the keys are fragment keys and values are floats, where the float gives the observed abundance correction for that fragment.  
+        variableOCorrect: A copy of the OValueCorrection dictionary, so we are not modifying it directly. 
         MNKey: "M1", "M2", etc. 
         amount: The size of the perturbation in relative terms (e.g. 2 per mil)
-        explicitOACorrect: An override dictionary, where an explicit distribution can be set for each fragment, rather than using the input from percentAbundanceCorrection and the calculated standard error.
+        explicitOACorrect: An override dictionary, where an explicit distribution can be set for each fragment, rather than using the input from OValueCorrection and the calculated standard error.
         
     Outputs:
-        variablePACorrect: A perturbed copy of the percentAbundanceCorrection dictionary. 
+        variableOCorrect: A perturbed copy of the OValueCorrection dictionary. 
     '''
-    for fragKey, pACorrect in percentAbundanceCorrection[MNKey].items():
+    for fragKey, pACorrect in OValueCorrection[MNKey].items():
         corrected = False
         #if == 1, no correction performed
         if pACorrect != 1:
@@ -245,43 +245,43 @@ def modifyPercentAbundanceCorrection(percentAbundanceCorrection, variablePACorre
                             v = explicitOACorrect[MNKey][fragKey]['Bounds'][1]
 
                     
-                    variablePACorrect[MNKey][fragKey] = v
+                    variableOCorrect[MNKey][fragKey] = v
                     
             if corrected == False:
-                variablePACorrect[MNKey][fragKey] = np.random.normal(pACorrect, pACorrect*amount)
+                variableOCorrect[MNKey][fragKey] = np.random.normal(pACorrect, pACorrect*amount)
             
-    return variablePACorrect
+    return variableOCorrect
 
-def experimentalPACorrection(MNKey, fragToCorrect, subToCorrect, perturbedSample, percentAbundanceCorrection, fragsToBenchmarkFrom):
+def experimentalOCorrection(MNKey, fragToCorrect, subToCorrect, perturbedSample, OValueCorrection, fragsToBenchmarkFrom):
     '''
-    A complicated procedure to generate experimental (more accurate) percent abundance correction factors in some fringe cases.  If you don't have a good understanding of what this is trying to do, you probably should not be using it. Review the theory paper TEST 7-8. 
+    A complicated procedure to generate experimental (more accurate) M+N Relative abundance correction factors in some fringe cases.  If you don't have a good understanding of what this is trying to do, you probably should not be using it. Review the theory paper TEST 7-8. 
     
     Inputs:
         MNKey: "M1", "M2", etc.
         fragToCorrect: A string, giving the fragment that should be corrected (e.g. "61")
-        subToCorrect: The substitution to use to correct; we anticipate the percent abundance observed for this substitution in this fragment should be the same as the percent abundance observed for this substitution in another fragment. 
+        subToCorrect: The substitution to use to correct; we anticipate the M+N Relative abundance observed for this substitution in this fragment should be the same as the M+N Relative abundance observed for this substitution in another fragment. 
         perturbedSample: The perturbed sample data, a dictionary.
-        percentAbundanceCorrection: A dictionary giving the percent abundance correction factors. 
-        fragsToBenchmarkFrom: A list, giving fragments where we expect to have accurately observed the percent abundance of the substitution in question. E.g. ['full', '133','104]
+        OValueCorrection: A dictionary giving the M+N Relative abundance correction factors. 
+        fragsToBenchmarkFrom: A list, giving fragments where we expect to have accurately observed the M+N Relative abundance of the substitution in question. E.g. ['full', '133','104]
         
     Outputs:
-        percentAbundanceCorrection: The same dictionary, updated with the experimental correction. 
+        OValueCorrection: The same dictionary, updated with the experimental correction. 
     '''
-    #first, check for fragments which did not need percent abundance correction. We will use these to benchmark those
+    #first, check for fragments which did not need M+N Relative abundance correction. We will use these to benchmark those
     #that do. Note that this procedure will mostly be applicable to M+1 measurements, as in other cases, there
     #will always be lost ion beams. 
     perfect = []
     for fragKey in fragsToBenchmarkFrom:
-        correction = percentAbundanceCorrection[MNKey][fragKey]
+        correction = OValueCorrection[MNKey][fragKey]
         if correction <= 0.999999 or correction >= 1.000001:
             raise Exception("Trying to experimentally correct fragment " + fragToCorrect + " with fragment " + fragKey
-                            + ". However, " + fragKey + " has a theoretical percent abundance correction itself. The procedure will not work.")
+                            + ". However, " + fragKey + " has a theoretical M+N Relative abundance correction itself. The procedure will not work.")
         perfect.append(fragKey)
 
     correctionFactors = []
-    #for each fragment benchmark, correct the percent abundance. Finish by taking the average of these. 
+    #for each fragment benchmark, correct the M+N Relative abundance. Finish by taking the average of these. 
     for fragKey, fragData in perturbedSample[MNKey].items():
-            #if this fragment did not require percent abundance correction
+            #if this fragment did not require M+N Relative abundance correction
             if fragKey in perfect:
                 subIndexBenchmark = perturbedSample[MNKey][fragKey]['Subs'].index(subToCorrect)
                 observationBenchmark = perturbedSample[MNKey][fragKey]['Observed Abundance'][subIndexBenchmark]
@@ -294,9 +294,9 @@ def experimentalPACorrection(MNKey, fragToCorrect, subToCorrect, perturbedSample
 
     CF = np.array(correctionFactors).mean()
     
-    percentAbundanceCorrection[MNKey][fragToCorrect] = CF
+    OValueCorrection[MNKey][fragToCorrect] = CF
     
-    return percentAbundanceCorrection
+    return OValueCorrection
 
 def constructMatrix(Isotopologues, smp, MNKey, fragmentationDictionary, includeSubs = [], omitSubs = []):
     '''
@@ -447,15 +447,15 @@ def GJElim(Matrix, augMatrix = False, AugAmount = 1, store = False, sanitize = F
         
     return M, rank, storage
 
-def M1MonteCarlo(standardData, sampleData, pACorrection, isotopologuesDict, fragmentationDictionary, N = 100, GJ = False, debugMatrix = False, includeSubs = [], omitSubs = [], disableProgress = False, theory = True, perturbTheoryOAmt = 0.002, experimentalPACorrectList = [], abundanceCorrect = True, debugUnderconstrained = True, plotUnconstrained = False,
-                storePerturbedSamples = False, storepACorrect = False, explicitOACorrect = {}, perturbOverrideList = []):
+def M1MonteCarlo(standardData, sampleData, OCorrection, isotopologuesDict, fragmentationDictionary, N = 100, GJ = False, debugMatrix = False, includeSubs = [], omitSubs = [], disableProgress = False, theory = True, perturbTheoryOAmt = 0.002, experimentalOCorrectList = [], abundanceCorrect = True, debugUnderconstrained = True, plotUnconstrained = False,
+                storePerturbedSamples = False, storeOCorrect = False, explicitOACorrect = {}, perturbOverrideList = []):
     '''
-    The Monte Carlo routine which is applied to M+1 measurements. This perturbs sample, standard, and percent abundance corrections N times, constructing and solving the matrix each time and recording the percent abundances. If the solution is underconstrained, it will also attempt to discover which specific isotopologues are not solved for and output this information to the user. 
+    The Monte Carlo routine which is applied to M+1 measurements. This perturbs sample, standard, and M+N Relative abundance corrections N times, constructing and solving the matrix each time and recording the M+N Relative abundances. If the solution is underconstrained, it will also attempt to discover which specific isotopologues are not solved for and output this information to the user. 
     
     Inputs:
         standardData:  A dictionary; keys are mass selections ("M1", "M2") then fragment Keys ("full", "44"), then information about substitutions, observed abundances, predicted abundances, and errors. 
         sampleData: A dictionary; keys are mass selections ("M1", "M2") then fragment Keys ("full", "44"), then information about substitutions, observed abundances, and errors. 
-        pACorrection: A dictionary, giving a percent abundance correction factor and associated error for each fragment of each mass selection. 
+        OCorrection: A dictionary, giving a M+N Relative abundance correction factor and associated error for each fragment of each mass selection. 
         isotopologuesDict: A dictionary; keys are mass selections, values are dataframes giving all of the isotopologues within that mass selection, including information about their fragmentation. 
         fragmentationDictionary: A dictionary, e.g. {'full': {'01': {'subgeometry': [1, 1, 1, 1, 1, 1], 'relCont': 1}},
                                                      '44': {'01': {'subgeometry': [1, 'x', 'x', 1, 1, 'x'], 'relCont': 1}}} which gives information about the fragments, their subgeometries and relative contributions.
@@ -467,7 +467,7 @@ def M1MonteCarlo(standardData, sampleData, pACorrection, isotopologuesDict, frag
         disableProgress: A boolean; true disables the tqdm bars.
         theory: A boolean, determines whether to calculate fractionation factors from the forward model. Should generally be set to True. 
         perturbTheoryOAmt: A float. For each run of the Monte Carlo, the prtvrnt sbundance correction factors can be perturbed; this may be useful because the factors are only known approximately, so this well better estimate error. 0.001 and 0.002 have been useful values before, but it may depend on the system of interest. See TEST 6. 
-        experimentalPACorrectList: A list, containing information about which peaks to use experimental, rather than theoretical, percent abundance corrections.
+        experimentalOCorrectList: A list, containing information about which peaks to use experimental, rather than theoretical, M+N Relative abundance corrections.
         abundanceCorrect: A boolean, determines whether to apply observed abundance correction. 
         debugUnderconstrained: If True, attempts to find the null space of the Gauss-Jordan solution to output which sites are well constrained (do not vary with the null space).
         plotUnconstrained: If True, outputs a plot of the null space to visualize how sites covary with each other in the null space. 
@@ -480,21 +480,21 @@ def M1MonteCarlo(standardData, sampleData, pACorrection, isotopologuesDict, frag
     MNKey = "M1"
     Isotopologues = isotopologuesDict[MNKey]
 
-    results = {'GJ':[],"NUMPY":[], "Extra Info":{'Perturbed Samples':[],'pA Correct':[],'StoreExpFactors':[]}}
+    results = {'GJ':[],"NUMPY":[], "Extra Info":{'Perturbed Samples':[],'O Correct':[],'StoreExpFactors':[]}}
     
-    variablePACorrect = copy.deepcopy(pACorrection)
+    variableOCorrect = copy.deepcopy(OCorrection)
     for i in tqdm(range(N), disable = disableProgress):
-        variablePACorrect = modifyPercentAbundanceCorrection(pACorrection, variablePACorrect, MNKey, explicitOACorrect = explicitOACorrect, amount = perturbTheoryOAmt)
+        variableOCorrect = modifyOValueCorrection(OCorrection, variableOCorrect, MNKey, explicitOACorrect = explicitOACorrect, amount = perturbTheoryOAmt)
         std = perturbStandard(standardData, theory = theory)
         
-        perturbedSample = perturbSample(sampleData, std, variablePACorrect, experimentalPACorrectList = experimentalPACorrectList,abundanceCorrect = abundanceCorrect,explicitOACorrect = explicitOACorrect, perturbOverrideList = perturbOverrideList)
+        perturbedSample = perturbSample(sampleData, std, variableOCorrect, experimentalOCorrectList = experimentalOCorrectList,abundanceCorrect = abundanceCorrect,explicitOACorrect = explicitOACorrect, perturbOverrideList = perturbOverrideList)
         
         smp = perturbedSample['M1']
        
         if storePerturbedSamples:
             results["Extra Info"]['Perturbed Samples'].append(smp.to_dict())
-        if storepACorrect:
-            results['Extra Info']['pA Correct'].append(copy.deepcopy(variablePACorrect['M1'])) 
+        if storeOCorrect:
+            results['Extra Info']['O Correct'].append(copy.deepcopy(variableOCorrect['M1'])) 
        
         comp, meas = constructMatrix(Isotopologues, smp, MNKey, fragmentationDictionary,
                                     includeSubs = includeSubs, omitSubs = omitSubs)
@@ -551,7 +551,7 @@ def calcUMN(MNKey, dataFrame, UPerturb, UMNSub = []):
     
     Inputs:
         MNKey: "M1", "M2", etc. 
-        dataFrame: A dataframe updated with the percent abundances from the solution to some system. 
+        dataFrame: A dataframe updated with the M+N relative abundances from the solution to some system. 
         UPerturb: The perturbed full molecule U Values for this round of the monte carlo routine. 
         UMNSub: Sets the specific substitutions that we will use molecular average U values from to calculate UMN. Otherwise it will use all molecular average U values for that UMN. Recommended to use--the procedure only works for substitions that are totally solved for. For example, if one 13C 13C isotopologue is not solved for precisely in fractional abundance space, we should not use 13C13C in the UMN routine. The best candidates tend to be abundant things--36S, 18O, 13C, 34S, and so forth. An eventual goal is to make a routine which automatically checks this. 
         
@@ -562,7 +562,7 @@ def calcUMN(MNKey, dataFrame, UPerturb, UMNSub = []):
     for isotope in set(dataFrame['Composition']):
         if isotope in UPerturb:
             if isotope in UMNSub or UMNSub == []:
-                est = UPerturb[isotope] / dataFrame[dataFrame["Composition"] == isotope][MNKey + ' Percent Abundance'].sum()
+                est = UPerturb[isotope] / dataFrame[dataFrame["Composition"] == isotope][MNKey + ' M+N Relative Abundance'].sum()
                 UValueEstimates.append(est)
 
     UMN = np.array(UValueEstimates).mean()
@@ -571,7 +571,7 @@ def calcUMN(MNKey, dataFrame, UPerturb, UMNSub = []):
 
 def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False, disableProgress = False, UMNSub = []):
     '''
-    Processes results of M1 Monte Carlo, converting the percent abundances into delta space and reordering to match the order of the original input dataframe. 
+    Processes results of M1 Monte Carlo, converting the M+N Relative abundances into delta space and reordering to match the order of the original input dataframe. 
     
     Inputs:
         M1Results: A dictionary containing the M1 results from the M1 Monte Carlo routine. 
@@ -586,7 +586,7 @@ def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False
         processedResults: A dictionary, containing lists of the results from every Monte Carlo solution for many variables of interest.             
     '''
     MNKey = "M1"
-    processedResults = {'PDB etc. Deltas':[],'Relative Deltas':[],'M1 Percent Abundance':[],'UM1':[],'Calc U Values':[]}
+    processedResults = {'PDB etc. Deltas':[],'Relative Deltas':[],'M1 Relative Abundance':[],'UM1':[],'Calc U Values':[]}
     string = "NUMPY"
     if GJ:
         string = "GJ"
@@ -594,7 +594,7 @@ def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False
     out = isotopologuesDict['M1'][['Number','Stochastic','Composition','Stochastic U','Precise Identity']].copy()
     
     for res in tqdm(M1Results[string], disable = disableProgress):
-        out['M1 Percent Abundance'] = res
+        out['M1 Relative Abundance'] = res
         
         #Perturb U Values
         UPerturb = PerturbUValue(UValuesSmp)
@@ -603,7 +603,7 @@ def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False
         UM1 = calcUMN(MNKey, out, UPerturb, UMNSub = UMNSub)
 
         out['UM1'] = UM1
-        out['Calc U Values'] = out['M1 Percent Abundance'] * out['UM1']
+        out['Calc U Values'] = out['M1 Relative Abundance'] * out['UM1']
         
         #The Isotopologues Dataframe has the substitutions in a different order than the site-specific dataframe. 
         #This section reassigns the solutions of the isotopologues dataframe to the right order for the 
@@ -615,7 +615,7 @@ def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False
             identity = v['Precise Identity'].split(' ')[1]
             index = list(df.index).index(identity)
 
-            M1[index] = v['M1 Percent Abundance']
+            M1[index] = v['M1 Relative Abundance']
             UM1[index] = v['UM1']
             U[index] = v['Calc U Values']
 
@@ -631,7 +631,7 @@ def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False
 
         processedResults['PDB etc. Deltas'].append(smpDeltasAbs)
         processedResults['Relative Deltas'].append(relSmpStdDeltas)
-        processedResults['M1 Percent Abundance'].append(M1)
+        processedResults['M1 Relative Abundance'].append(M1)
         processedResults['UM1'].append(UM1)
         processedResults['Calc U Values'].append(U)
         
@@ -651,7 +651,7 @@ def updateSiteSpecificDfM1MC(processedResults, df):
         
     return df
 
-def MonteCarloMN(MNKey, Isotopologues, standardData, sampleData, pACorrection, 
+def MonteCarloMN(MNKey, Isotopologues, standardData, sampleData, OCorrection, 
                  fragmentationDictionary, N = 10, includeSubs = [], omitSubs = [], disableProgress = False, perturbTheoryOAmt = 0,abundanceCorrect = True):
     '''
     The M+N experiment with N>2 will almost certainly be underconstrained, in contrast to the M+1 which will often be constrained. Additionally, we don't wish to report these results by updating the original dataframe. For these reasons, we define a separate set of functions for the M+N solution. 
@@ -667,7 +667,7 @@ def MonteCarloMN(MNKey, Isotopologues, standardData, sampleData, pACorrection,
                 values are dictionaries. Then the keys are "Subs", "Predicted Abundance", "Observed Abundance", 
                 "Error", giving information about that measurement. 
         sampleData: As standardData, but no predicted abundances. 
-        pACorrection: A dictionary giving the pA correction factors by mass selection and fragment.
+        OCorrection: A dictionary giving the pA correction factors by mass selection and fragment.
         N: The number of Monte Carlo runs to perform.
         includeSubs: A list of isotopes, if we want to include only certain isotopes in the matrix. If it is nonempty, only isotopes in the list will be included in the matrix. Generally should be empty. 
         omitSubs: A list of isotopes, if we wish to omit certain isotopes from the matrix. If it is nonempty, isotopes in the list will not be included in the matrix. Generally should be empty. 
@@ -685,12 +685,12 @@ def MonteCarloMN(MNKey, Isotopologues, standardData, sampleData, pACorrection,
     res[MNKey] =  {'GJ':[]}
     
         
-    variablePACorrect = copy.deepcopy(pACorrection)
+    variableOCorrect = copy.deepcopy(OCorrection)
     for i in tqdm(range(N), disable = disableProgress):
-        variablePACorrect = modifyPercentAbundanceCorrection(pACorrection, variablePACorrect, MNKey, amount = perturbTheoryOAmt)
+        variableOCorrect = modifyOValueCorrection(OCorrection, variableOCorrect, MNKey, amount = perturbTheoryOAmt)
         #Perturb sample and standard
         std = perturbStandard(standardData)
-        smp = perturbSample(sampleData, std, variablePACorrect, abundanceCorrect = abundanceCorrect)[MNKey]
+        smp = perturbSample(sampleData, std, variableOCorrect, abundanceCorrect = abundanceCorrect)[MNKey]
 
         
         comp, meas = constructMatrix(Isotopologues, smp, MNKey, fragmentationDictionary,
@@ -706,7 +706,7 @@ def MonteCarloMN(MNKey, Isotopologues, standardData, sampleData, pACorrection,
 
 def processMNMonteCarloResults(MNKey, results, UValuesSmp, dataFrame, df, MNDictStd, UMNSub = [], disableProgress = False):
     '''
-    Given solutions from the GJ solver monte carlo routine and a dataFrame listing which isotopologues correspond to each solution, calculates percent abundances. Then perturbs and applies a UMN value and calculates deltas and clumped deltas. Stores these values in a dictionary for statistics to be run on them. 
+    Given solutions from the GJ solver monte carlo routine and a dataFrame listing which isotopologues correspond to each solution, calculates M+N Relative abundances. Then perturbs and applies a UMN value and calculates deltas and clumped deltas. Stores these values in a dictionary for statistics to be run on them. 
     
     Inputs:
         MNKey: A string, "M2"
@@ -723,18 +723,18 @@ def processMNMonteCarloResults(MNKey, results, UValuesSmp, dataFrame, df, MNDict
         processedResults: A dictionary containing values for several important measures from each Monte Carlo
         run. 
     '''
-    processedResults = {MNKey + ' Percent Abundance':[],'U' + MNKey:[],'U Values':[], 'Deltas':[], 'Clumped Deltas Stochastic': [], 'Clumped Deltas Relative': []}
+    processedResults = {MNKey + ' M+N Relative Abundance':[],'U' + MNKey:[],'U Values':[], 'Deltas':[], 'Clumped Deltas Stochastic': [], 'Clumped Deltas Relative': []}
     rank = len(dataFrame.index)
     
     for sol in tqdm(results[MNKey]['GJ'], disable = disableProgress):
-        dataFrame[MNKey + ' Percent Abundance'] = sol[:rank]
+        dataFrame[MNKey + ' M+N Relative Abundance'] = sol[:rank]
 
         UPerturb = PerturbUValue(UValuesSmp)
 
         UMN = calcUMN(MNKey, dataFrame, UPerturb, UMNSub = UMNSub)
 
         dataFrame['U' + MNKey] = UMN
-        dataFrame['U Values'] = dataFrame[MNKey + ' Percent Abundance'] * dataFrame['U' + MNKey]
+        dataFrame['U Values'] = dataFrame[MNKey + ' M+N Relative Abundance'] * dataFrame['U' + MNKey]
 
         dataFrame = computeMNUValues(dataFrame, MNKey, df, applyUMN = False)
         dataFrame = updateRelClumpedDeltas(dataFrame, MNKey, MNDictStd)
@@ -747,10 +747,10 @@ def processMNMonteCarloResults(MNKey, results, UValuesSmp, dataFrame, df, MNDict
 
 def computeMNUValues(MNSolution, MNKey, df, applyUMN = True, clumpU = False):
     '''
-    Takes a dataframe containing the M+N Solution in percent abundance space, transfers these to U value space, and then calculates clumped and site-specific delta values from these U Values. 
+    Takes a dataframe containing the M+N Solution in M+N Relative abundance space, transfers these to U value space, and then calculates clumped and site-specific delta values from these U Values. 
     
     Inputs:
-        MNSolution: A dataframe containing the M+N results in Percent abundance space as well as the U^M+N value.
+        MNSolution: A dataframe containing the M+N results in M+N Relative abundance space as well as the U^M+N value.
         MNKey: "M2", "M3", etc. 
         df: The original dataframe containing information about sites of the molecule. 
         applyUMN: A boolean, determines whether to calculate U Values using U^M+N or not.
@@ -760,7 +760,7 @@ def computeMNUValues(MNSolution, MNKey, df, applyUMN = True, clumpU = False):
         MNSolution: The dataframe updated with clumped and site-specific deltas. 
     '''
     if applyUMN:
-        MNSolution['U Values'] = MNSolution[MNKey + ' Percent Abundance'] * MNSolution["U" + MNKey]
+        MNSolution['U Values'] = MNSolution[MNKey + ' M+N Relative Abundance'] * MNSolution["U" + MNKey]
         
     if clumpU:
         string = "Clump Adjusted U Values"
@@ -941,7 +941,7 @@ def updateMNMonteCarloResults(dataFrame, processedResults):
 
 def checkSolutionIsotopologues(solve, Isotopologues, massKey, numerical = True):
     '''
-    Given a solution to an augmented matrix which associates isotopologues with their MN Percent abundance, recovers the identity of each isotopologue from its column in the augmented matrix. Computes the stochastic abundance of each constraint, as well as their compositions and number. 
+    Given a solution to an augmented matrix which associates isotopologues with their M+N Relative abundance, recovers the identity of each isotopologue from its column in the augmented matrix. Computes the stochastic abundance of each constraint, as well as their compositions and number. 
     
     You can think of this as a lookup function, which goes through the rows of the solved GJ solution and determines which columns (isotopologues) contribute to each. 
     
@@ -949,7 +949,7 @@ def checkSolutionIsotopologues(solve, Isotopologues, massKey, numerical = True):
         solve: The output of GJElim
         Isotopologues: A dataFrame containing the MN population of Isotopologues
         massKey: 'M1', 'M2', etc. 
-        numerical: True if we want to pull out U Values or Percent Abundance. When running the MC routine, we don't, we only need to know which row corresponds to which isotopologues. 
+        numerical: True if we want to pull out U Values or M+N Relative Abundance. When running the MC routine, we don't, we only need to know which row corresponds to which isotopologues. 
         
     Outputs:
         a Pandas dataFrame containing information about the isotopologues corresponding to the GJ Solution. 
@@ -1021,7 +1021,7 @@ def checkSolutionIsotopologues(solve, Isotopologues, massKey, numerical = True):
     output = {}
     
     if numerical:
-        output[massKey +' Percent Abundance'] = values
+        output[massKey +' M+N Relative Abundance'] = values
         output['Matrix Row'] = MatrixRows
 
     output['Stochastic U'] = stochasticValues
