@@ -41,48 +41,48 @@ conditions = {'PerfectMeasurement':{'abundanceThreshold':0,'massThreshold':4, 's
                         'calcFF':False,'forwardModelDeltas':knownStd,
                         'forbiddenPeaks':{},'unresolvedDict':{},
                         'experimentalPACorrectList':[], 
-                        'MN Error':0,'Molecular Average U Error':0,'N':1,'perturbTheoryPAAmtM1':0,
-                        'perturbTheoryPAAmtMN':0, 'explicitOACorrect':{},
+                        'MN Error':0,'Molecular Average U Error':0,'N':1,'perturbTheoryOAmtM1':0,
+                        'perturbTheoryOAmtMN':0, 'explicitOACorrect':{},
                         'extremeVals':{},'NUpdates':0,'abundanceCorrect':False},
               
               'ExpError':{'abundanceThreshold':0,'massThreshold':4, 'saveInput' : True, 'saveOutput' : True,
                         'calcFF':False,'forwardModelDeltas':knownStd,
                         'forbiddenPeaks':{},'unresolvedDict':{},
                         'experimentalPACorrectList':[], 
-                        'MN Error':0.001,'Molecular Average U Error':0.0001,'N':1000,'perturbTheoryPAAmtM1':0,
-                        'perturbTheoryPAAmtMN':0, 'explicitOACorrect':{},
+                        'MN Error':0.001,'Molecular Average U Error':0.0001,'N':1000,'perturbTheoryOAmtM1':0,
+                        'perturbTheoryOAmtMN':0, 'explicitOACorrect':{},
                         'extremeVals':{},'NUpdates':0,'abundanceCorrect':False},
               
               'InstFrac':{'abundanceThreshold':0,'massThreshold':4, 'saveInput' : True, 'saveOutput' : True,
                         'calcFF':True,'forwardModelDeltas':unknownStd,
                         'forbiddenPeaks':{},'unresolvedDict':{},
                         'experimentalPACorrectList':[], 
-                        'MN Error':0.001,'Molecular Average U Error':0.0001,'N':1000,'perturbTheoryPAAmtM1':0,
-                        'perturbTheoryPAAmtMN':0, 'explicitOACorrect':{},
+                        'MN Error':0.001,'Molecular Average U Error':0.0001,'N':1000,'perturbTheoryOAmtM1':0,
+                        'perturbTheoryOAmtMN':0, 'explicitOACorrect':{},
                         'extremeVals':{},'NUpdates':0,'abundanceCorrect':False},
               
               'LowAbund':{'abundanceThreshold':0.01,'massThreshold':4, 'saveInput' : True, 'saveOutput' : True,
                         'calcFF':False,'forwardModelDeltas':knownStd,
                         'forbiddenPeaks':forbiddenPeaks,'unresolvedDict':{},
                         'experimentalPACorrectList':[], 
-                        'MN Error':0.001,'Molecular Average U Error':0.0001,'N':1000,'perturbTheoryPAAmtM1':0,
-                        'perturbTheoryPAAmtMN':0.001, 'explicitOACorrect':{},
+                        'MN Error':0.001,'Molecular Average U Error':0.0001,'N':1000,'perturbTheoryOAmtM1':0,
+                        'perturbTheoryOAmtMN':0.001, 'explicitOACorrect':{},
                         'extremeVals':{},'NUpdates':50,'abundanceCorrect':True},
               
               'Unresolved':{'abundanceThreshold':0,'massThreshold':4, 'saveInput' : True, 'saveOutput' : True,
                         'calcFF':False,'forwardModelDeltas':knownStd,
                         'forbiddenPeaks':{},'unresolvedDict':unresolvedDict,
                         'experimentalPACorrectList':[], 
-                        'MN Error':0.001,'Molecular Average U Error':0.0001,'N':1000,'perturbTheoryPAAmtM1':0,
-                        'perturbTheoryPAAmtMN':0.001, 'explicitOACorrect':{},
+                        'MN Error':0.001,'Molecular Average U Error':0.0001,'N':1000,'perturbTheoryOAmtM1':0,
+                        'perturbTheoryOAmtMN':0.001, 'explicitOACorrect':{},
                         'extremeVals':{},'NUpdates':50,'abundanceCorrect':True},
               
               'AllIssue':{'abundanceThreshold':0.01,'massThreshold':4, 'saveInput' : True, 'saveOutput' : True,
                         'calcFF':True,'forwardModelDeltas':unknownStd,
                         'forbiddenPeaks':forbiddenPeaks,'unresolvedDict':unresolvedDict,
                         'experimentalPACorrectList':[], 
-                        'MN Error':0.001,'Molecular Average U Error':0.0001,'N':1000,'perturbTheoryPAAmtM1':0,
-                        'perturbTheoryPAAmtMN':0.001, 'explicitOACorrect':{},
+                        'MN Error':0.001,'Molecular Average U Error':0.0001,'N':1000,'perturbTheoryOAmtM1':0,
+                        'perturbTheoryOAmtMN':0.001, 'explicitOACorrect':{},
                         'extremeVals':{},'NUpdates':50,'abundanceCorrect':True}}
 
 conditions = {key:value for key, value in conditions.items() if key in toRun}
@@ -154,7 +154,7 @@ for testKey, testData in conditions.items():
     pACorrection = ss.percentAbundanceCorrectTheoretical(predictedMeasurementFMStd, processSample, massThreshold = testData['massThreshold'])
 
     M1Results = ss.M1MonteCarlo(processStandard, processSample, pACorrection, isotopologuesDict,
-                                fragmentationDictionary, perturbTheoryPAAmt = testData['perturbTheoryPAAmtM1'],
+                                fragmentationDictionary, perturbTheoryOAmt = testData['perturbTheoryOAmtM1'],
                                 experimentalPACorrectList = testData['experimentalPACorrectList'],
                                 N = testData['N'], GJ = False, debugMatrix = False, disableProgress = True,
                                storePerturbedSamples = True, storepACorrect = True, 
@@ -180,7 +180,7 @@ for testKey, testData in conditions.items():
         iterateSample = {key: value for (key, value) in processSample.items() if key == 'M1'}
         
         M1Results, thispADict  = metTest.updateAbundanceCorrection(oldDeltas, fragSubset, fragmentationDictionary, expandedFrags, fragSubgeometryKeys, iterateStandard, iterateSample, isotopologuesDict, UValuesSmp, df, deviation = 4, 
-                              perturbTheoryPAAmt = testData['perturbTheoryPAAmtM1'], 
+                              perturbTheoryOAmt = testData['perturbTheoryOAmtM1'], 
                               NUpdates = testData['NUpdates'], 
                               breakCondition = 1e-3,
                               experimentalPACorrectList = testData['experimentalPACorrectList'],
@@ -233,7 +233,7 @@ for testKey, testData in conditions.items():
         Isotopologues = isotopologuesDict[MNKey]
 
         results, comp, GJSol, meas = ss.MonteCarloMN(MNKey, Isotopologues, processStandard, processSample, 
-                                            pACorrection, fragmentationDictionary, N = testData['N'], disableProgress = True, perturbTheoryPAAmt = testData['perturbTheoryPAAmtMN'])
+                                            pACorrection, fragmentationDictionary, N = testData['N'], disableProgress = True, perturbTheoryOAmt = testData['perturbTheoryOAmtMN'])
 
 
         dfOutput = ss.checkSolutionIsotopologues(GJSol, Isotopologues, MNKey, numerical = False)

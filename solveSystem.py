@@ -130,7 +130,7 @@ def perturbSample(sampleData, perturbedStandard, pACorrection, experimentalPACor
         sampleData: A dictionary; keys are mass selections ("M1", "M2") then fragment Keys ("full", "44"), then information about substitutions, observed abundances, and errors. 
         perturbedStandard: A dictionary, the output of perturbStandard. Keys are mass selections, then fragment keys. Contains information about the correction factors for each peak.
         pACorrection: A dictionary, giving a percent abundance correction factor for each fragment of each mass selection. 
-        experimentalPACorrectList: A list, containing information about which peaks to use experimental, rather than theoretical, percent abundance corrections. See TEST 7-8. 
+        experimentalPACorrectList: A list, containing information about which peaks to use experimental, rather than theoretical, percent abundance corrections.
         correctionFactors: A boolean, determines whether to apply sample/standard correction factors.
         abundanceCorrect: A boolean, determines whether to apply observed abundance correction factors. 
         perturbOverrideList: perturbSample will automatically perturb all sample acquisitions (M1, M2, M3, M4); in some cases, e.g. when doing an iterated correction for M1, we do not want to perturb all, only M1. This can be specified with this list. (E.g. ['M1']) 
@@ -224,7 +224,7 @@ def modifyPercentAbundanceCorrection(percentAbundanceCorrection, variablePACorre
         variablePACorrect: A copy of the percentAbundanceCorrection dictionary, so we are not modifying it directly. 
         MNKey: "M1", "M2", etc. 
         amount: The size of the perturbation in relative terms (e.g. 2 per mil)
-        explicitOACorrect: An override dictionary, where an explcit distribution can be set for each fragment, rather than using the input from percentAbundanceCorrection and the calculated standard error.
+        explicitOACorrect: An override dictionary, where an explicit distribution can be set for each fragment, rather than using the input from percentAbundanceCorrection and the calculated standard error.
         
     Outputs:
         variablePACorrect: A perturbed copy of the percentAbundanceCorrection dictionary. 
@@ -447,7 +447,7 @@ def GJElim(Matrix, augMatrix = False, AugAmount = 1, store = False, sanitize = F
         
     return M, rank, storage
 
-def M1MonteCarlo(standardData, sampleData, pACorrection, isotopologuesDict, fragmentationDictionary, N = 100, GJ = False, debugMatrix = False, includeSubs = [], omitSubs = [], disableProgress = False, theory = True, perturbTheoryPAAmt = 0.002, experimentalPACorrectList = [], abundanceCorrect = True, debugUnderconstrained = True, plotUnconstrained = False,
+def M1MonteCarlo(standardData, sampleData, pACorrection, isotopologuesDict, fragmentationDictionary, N = 100, GJ = False, debugMatrix = False, includeSubs = [], omitSubs = [], disableProgress = False, theory = True, perturbTheoryOAmt = 0.002, experimentalPACorrectList = [], abundanceCorrect = True, debugUnderconstrained = True, plotUnconstrained = False,
                 storePerturbedSamples = False, storepACorrect = False, explicitOACorrect = {}, perturbOverrideList = []):
     '''
     The Monte Carlo routine which is applied to M+1 measurements. This perturbs sample, standard, and percent abundance corrections N times, constructing and solving the matrix each time and recording the percent abundances. If the solution is underconstrained, it will also attempt to discover which specific isotopologues are not solved for and output this information to the user. 
@@ -466,8 +466,8 @@ def M1MonteCarlo(standardData, sampleData, pACorrection, isotopologuesDict, frag
         omitSubs: A list of isotopes, if we wish to omit certain isotopes from the matrix. If it is nonempty, isotopes in the list will not be included in the matrix. Generally should be empty. 
         disableProgress: A boolean; true disables the tqdm bars.
         theory: A boolean, determines whether to calculate fractionation factors from the forward model. Should generally be set to True. 
-        perturbTheoryPAAmt: A float. For each run of the Monte Carlo, the prtvrnt sbundance correction factors can be perturbed; this may be useful because the factors are only known approximately, so this well better estimate error. 0.001 and 0.002 have been useful values before, but it may depend on the system of interest. See TEST 6. 
-        experimentalPACorrectList: A list, containing information about which peaks to use experimental, rather than theoretical, percent abundance corrections. See TEST 7-8.
+        perturbTheoryOAmt: A float. For each run of the Monte Carlo, the prtvrnt sbundance correction factors can be perturbed; this may be useful because the factors are only known approximately, so this well better estimate error. 0.001 and 0.002 have been useful values before, but it may depend on the system of interest. See TEST 6. 
+        experimentalPACorrectList: A list, containing information about which peaks to use experimental, rather than theoretical, percent abundance corrections.
         abundanceCorrect: A boolean, determines whether to apply observed abundance correction. 
         debugUnderconstrained: If True, attempts to find the null space of the Gauss-Jordan solution to output which sites are well constrained (do not vary with the null space).
         plotUnconstrained: If True, outputs a plot of the null space to visualize how sites covary with each other in the null space. 
@@ -484,7 +484,7 @@ def M1MonteCarlo(standardData, sampleData, pACorrection, isotopologuesDict, frag
     
     variablePACorrect = copy.deepcopy(pACorrection)
     for i in tqdm(range(N), disable = disableProgress):
-        variablePACorrect = modifyPercentAbundanceCorrection(pACorrection, variablePACorrect, MNKey, explicitOACorrect = explicitOACorrect, amount = perturbTheoryPAAmt)
+        variablePACorrect = modifyPercentAbundanceCorrection(pACorrection, variablePACorrect, MNKey, explicitOACorrect = explicitOACorrect, amount = perturbTheoryOAmt)
         std = perturbStandard(standardData, theory = theory)
         
         perturbedSample = perturbSample(sampleData, std, variablePACorrect, experimentalPACorrectList = experimentalPACorrectList,abundanceCorrect = abundanceCorrect,explicitOACorrect = explicitOACorrect, perturbOverrideList = perturbOverrideList)
@@ -652,7 +652,7 @@ def updateSiteSpecificDfM1MC(processedResults, df):
     return df
 
 def MonteCarloMN(MNKey, Isotopologues, standardData, sampleData, pACorrection, 
-                 fragmentationDictionary, N = 10, includeSubs = [], omitSubs = [], disableProgress = False, perturbTheoryPAAmt = 0,abundanceCorrect = True):
+                 fragmentationDictionary, N = 10, includeSubs = [], omitSubs = [], disableProgress = False, perturbTheoryOAmt = 0,abundanceCorrect = True):
     '''
     The M+N experiment with N>2 will almost certainly be underconstrained, in contrast to the M+1 which will often be constrained. Additionally, we don't wish to report these results by updating the original dataframe. For these reasons, we define a separate set of functions for the M+N solution. 
     
@@ -672,7 +672,7 @@ def MonteCarloMN(MNKey, Isotopologues, standardData, sampleData, pACorrection,
         includeSubs: A list of isotopes, if we want to include only certain isotopes in the matrix. If it is nonempty, only isotopes in the list will be included in the matrix. Generally should be empty. 
         omitSubs: A list of isotopes, if we wish to omit certain isotopes from the matrix. If it is nonempty, isotopes in the list will not be included in the matrix. Generally should be empty. 
         disableProgress: A boolean; true disables the tqdm bars.
-        perturbTheoryPAAmt: A float. For each run of the Monte Carlo, the prtvrnt sbundance correction factors can be perturbed; this may be useful because the factors are only known approximately, so this well better estimate error. 0.001 and 0.002 have been useful values before, but it may depend on the system of interest. See TEST 6. 
+        perturbTheoryOAmt: A float. For each run of the Monte Carlo, the prtvrnt sbundance correction factors can be perturbed; this may be useful because the factors are only known approximately, so this well better estimate error. 0.001 and 0.002 have been useful values before, but it may depend on the system of interest. See TEST 6. 
         abundanceCorrect: A boolean, determines whether to apply observed abundance correction factors. 
         
     Outputs:
@@ -687,7 +687,7 @@ def MonteCarloMN(MNKey, Isotopologues, standardData, sampleData, pACorrection,
         
     variablePACorrect = copy.deepcopy(pACorrection)
     for i in tqdm(range(N), disable = disableProgress):
-        variablePACorrect = modifyPercentAbundanceCorrection(pACorrection, variablePACorrect, MNKey, amount = perturbTheoryPAAmt)
+        variablePACorrect = modifyPercentAbundanceCorrection(pACorrection, variablePACorrect, MNKey, amount = perturbTheoryOAmt)
         #Perturb sample and standard
         std = perturbStandard(standardData)
         smp = perturbSample(sampleData, std, variablePACorrect, abundanceCorrect = abundanceCorrect)[MNKey]

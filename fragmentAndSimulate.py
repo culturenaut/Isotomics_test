@@ -7,9 +7,7 @@ import calcIsotopologues as ci
 '''
 This code extracts the concentrations of isotopologues of interest from the dictionary of all isotopologues   
 in order to predict the outcomes of meaurements. It also allows one to fragment the isotopologues to compute the     
-outcome of fragment measurements.                                                                                    
-
-The theory for this section is developed in the working M+N paper. Contact Tim for details.                          
+outcome of fragment measurements.                                                                                                            
 
 It assumes one has access to a dictionary with information about the isotopologues. See calcIsotopologues.py. 
 '''
