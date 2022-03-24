@@ -68,7 +68,7 @@ def perturbSampleError(sampleData):
 
 def perturbSampleCorrectionFactors(perturbedSample, perturbedStandard, renormalize = True):
     '''
-    Applies the calculated correction factors from the standard to our sample. The most important choice here is the renormalize boolean. As discussed in the theory paper (TEST 3), renormalizing at this step can remove the "W" factor, leading to a more accurate solution. In some instances, one may wish not to renormalize (see TEST 9). By default it should be True. 
+    Applies the calculated correction factors from the standard to our sample. The most important choice here is the renormalize boolean. As discussed in the appendix, renormalizing at this step can remove the "W" factor, leading to a more accurate solution. In some instances, one may wish not to renormalize. By default it should be True. 
     
     Inputs:
         perturbedSample: A dictionary, the output of perturbSampleError. Keys are mass selections, then fragment keys. Contains information about observed abundance and substitutions. 
@@ -104,23 +104,23 @@ def perturbSampleOCorrection(correctedSample, OCorrection, perturbOverrideList =
         perturbOverrideList: For M1 Iterated correction, do not want to use all mass selections, only M1; set to ['M1']
         
     Outputs:
-        pACorrectedSample: A dictionary; keys are mass selections, then fragment keys. Contains information about observed abundance and substitutions. 
+        OCorrectedSample: A dictionary; keys are mass selections, then fragment keys. Contains information about observed abundance and substitutions. 
     '''
-    pACorrectedSample = {}
+    OCorrectedSample = {}
     
     for massSelection in correctedSample.keys():
         if perturbOverrideList == [] or massSelection in perturbOverrideList:
-            pACorrectedSample[massSelection] = {}
+            OCorrectedSample[massSelection] = {}
             for fragKey, fragData in correctedSample[massSelection].items():
-                pACorrectedSample[massSelection][fragKey] = {}
+                OCorrectedSample[massSelection][fragKey] = {}
 
                 observed = fragData['Observed Abundance']
                 correctedPA = observed * OCorrection[massSelection][fragKey]
 
-                pACorrectedSample[massSelection][fragKey] = {'Observed Abundance': correctedPA,
+                OCorrectedSample[massSelection][fragKey] = {'Observed Abundance': correctedPA,
                                                            'Subs': fragData['Subs']}
             
-    return pACorrectedSample
+    return OCorrectedSample
 
 def perturbSample(sampleData, perturbedStandard, OCorrection, experimentalOCorrectList = [], correctionFactors = True, abundanceCorrect = True, explicitOCorrect = {}, perturbOverrideList = []):
     '''
@@ -229,10 +229,10 @@ def modifyOValueCorrection(OValueCorrection, variableOCorrect, MNKey, explicitOC
     Outputs:
         variableOCorrect: A perturbed copy of the OValueCorrection dictionary. 
     '''
-    for fragKey, pACorrect in OValueCorrection[MNKey].items():
+    for fragKey, OFactor in OValueCorrection[MNKey].items():
         corrected = False
         #if == 1, no correction performed
-        if pACorrect != 1:
+        if OFactor != 1:
             if MNKey in explicitOCorrect:
                 if fragKey in explicitOCorrect[MNKey]:
                     corrected = True
@@ -248,7 +248,7 @@ def modifyOValueCorrection(OValueCorrection, variableOCorrect, MNKey, explicitOC
                     variableOCorrect[MNKey][fragKey] = v
                     
             if corrected == False:
-                variableOCorrect[MNKey][fragKey] = np.random.normal(pACorrect, pACorrect*amount)
+                variableOCorrect[MNKey][fragKey] = np.random.normal(OFactor, OFactor*amount)
             
     return variableOCorrect
 
@@ -447,8 +447,13 @@ def GJElim(Matrix, augMatrix = False, AugAmount = 1, store = False, sanitize = F
         
     return M, rank, storage
 
-def M1MonteCarlo(standardData, sampleData, OCorrection, isotopologuesDict, fragmentationDictionary, N = 100, GJ = False, debugMatrix = False, includeSubs = [], omitSubs = [], disableProgress = False, theory = True, perturbTheoryOAmt = 0.002, experimentalOCorrectList = [], abundanceCorrect = True, debugUnderconstrained = True, plotUnconstrained = False,
-                storePerturbedSamples = False, storeOCorrect = False, explicitOCorrect = {}, perturbOverrideList = []):
+def M1MonteCarlo(standardData, sampleData, OCorrection, isotopologuesDict, fragmentationDictionary, 
+                N = 100, GJ = False, debugMatrix = False, includeSubs = [], omitSubs = [], 
+                disableProgress = False, theory = True, perturbTheoryOAmt = 0.002,
+                experimentalOCorrectList = [], abundanceCorrect = True, 
+                debugUnderconstrained = True, plotUnconstrained = False,
+                storePerturbedSamples = False, storeOCorrect = False, explicitOCorrect = {}, 
+                perturbOverrideList = []):
     '''
     The Monte Carlo routine which is applied to M+1 measurements. This perturbs sample, standard, and M+N Relative abundance corrections N times, constructing and solving the matrix each time and recording the M+N Relative abundances. If the solution is underconstrained, it will also attempt to discover which specific isotopologues are not solved for and output this information to the user. 
     
@@ -668,7 +673,7 @@ def MonteCarloMN(MNKey, Isotopologues, standardData, sampleData, OCorrection,
                 values are dictionaries. Then the keys are "Subs", "Predicted Abundance", "Observed Abundance", 
                 "Error", giving information about that measurement. 
         sampleData: As standardData, but no predicted abundances. 
-        OCorrection: A dictionary giving the pA correction factors by mass selection and fragment.
+        OCorrection: A dictionary giving the O correction factors by mass selection and fragment.
         N: The number of Monte Carlo runs to perform.
         includeSubs: A list of isotopes, if we want to include only certain isotopes in the matrix. If it is nonempty, only isotopes in the list will be included in the matrix. Generally should be empty. 
         omitSubs: A list of isotopes, if we wish to omit certain isotopes from the matrix. If it is nonempty, isotopes in the list will not be included in the matrix. Generally should be empty. 
