@@ -122,7 +122,7 @@ def perturbSampleOCorrection(correctedSample, OCorrection, perturbOverrideList =
             
     return pACorrectedSample
 
-def perturbSample(sampleData, perturbedStandard, OCorrection, experimentalOCorrectList = [], correctionFactors = True, abundanceCorrect = True, explicitOACorrect = {}, perturbOverrideList = []):
+def perturbSample(sampleData, perturbedStandard, OCorrection, experimentalOCorrectList = [], correctionFactors = True, abundanceCorrect = True, explicitOCorrect = {}, perturbOverrideList = []):
     '''
     Takes sample data and perturbs it multiple ways--first perturbs experimental error, then applies (fractionation) correction factors, then applies M+N Relative abundance correction factors. Finally processes the perturbed sample into a dataframe to be looped into the matrix solver. 
     
@@ -134,7 +134,7 @@ def perturbSample(sampleData, perturbedStandard, OCorrection, experimentalOCorre
         correctionFactors: A boolean, determines whether to apply sample/standard correction factors.
         abundanceCorrect: A boolean, determines whether to apply observed abundance correction factors. 
         perturbOverrideList: perturbSample will automatically perturb all sample acquisitions (M1, M2, M3, M4); in some cases, e.g. when doing an iterated correction for M1, we do not want to perturb all, only M1. This can be specified with this list. (E.g. ['M1']) 
-        
+        explicitOCorrect: For each MNKey and each fragment, may provide bounds on reasonable O correction values. 
     Outputs:
         measurementData: A dictionary containing a dataframe for each M+N experiment. The dataframe gives the final corrected relative abundances for each peak of each fragment. 
     '''
@@ -150,14 +150,14 @@ def perturbSample(sampleData, perturbedStandard, OCorrection, experimentalOCorre
             MNKey = c['MNKey']
             fragKey = c['fragToCorrect']
             
-            if MNKey in explicitOACorrect:
-                if fragKey in explicitOACorrect[MNKey]:
-                    if 'Bounds' in explicitOACorrect[MNKey][fragKey]:
-                        if OCorrection[MNKey][fragKey] <= explicitOACorrect[MNKey][fragKey]['Bounds'][0]:
-                            OCorrection[MNKey][fragKey] = explicitOACorrect[MNKey][fragKey]['Bounds'][0]
+            if MNKey in explicitOCorrect:
+                if fragKey in explicitOCorrect[MNKey]:
+                    if 'Bounds' in explicitOCorrect[MNKey][fragKey]:
+                        if OCorrection[MNKey][fragKey] <= explicitOCorrect[MNKey][fragKey]['Bounds'][0]:
+                            OCorrection[MNKey][fragKey] = explicitOCorrect[MNKey][fragKey]['Bounds'][0]
 
-                        if OCorrection[MNKey][fragKey] >= explicitOACorrect[MNKey][fragKey]['Bounds'][1]:
-                            OCorrection[MNKey][fragKey] = explicitOACorrect[MNKey][fragKey]['Bounds'][1]
+                        if OCorrection[MNKey][fragKey] >= explicitOCorrect[MNKey][fragKey]['Bounds'][1]:
+                            OCorrection[MNKey][fragKey] = explicitOCorrect[MNKey][fragKey]['Bounds'][1]
 
         perturbedSample = perturbSampleOCorrection(perturbedSample, OCorrection, perturbOverrideList = perturbOverrideList)
 
@@ -215,7 +215,7 @@ def OValueCorrectTheoretical(predictedMeasurement, processSample, massThreshold 
             
     return OValueCorrection
 
-def modifyOValueCorrection(OValueCorrection, variableOCorrect, MNKey, explicitOACorrect = {}, amount = 0.002):
+def modifyOValueCorrection(OValueCorrection, variableOCorrect, MNKey, explicitOCorrect = {}, amount = 0.002):
     '''
     Perturbs the M+N Relative abundance correction factors, for example if they are only approximately known. 
     
@@ -224,7 +224,7 @@ def modifyOValueCorrection(OValueCorrection, variableOCorrect, MNKey, explicitOA
         variableOCorrect: A copy of the OValueCorrection dictionary, so we are not modifying it directly. 
         MNKey: "M1", "M2", etc. 
         amount: The size of the perturbation in relative terms (e.g. 2 per mil)
-        explicitOACorrect: An override dictionary, where an explicit distribution can be set for each fragment, rather than using the input from OValueCorrection and the calculated standard error.
+        explicitOCorrect: An override dictionary, where an explicit distribution can be set for each fragment, rather than using the input from OValueCorrection and the calculated standard error.
         
     Outputs:
         variableOCorrect: A perturbed copy of the OValueCorrection dictionary. 
@@ -233,16 +233,16 @@ def modifyOValueCorrection(OValueCorrection, variableOCorrect, MNKey, explicitOA
         corrected = False
         #if == 1, no correction performed
         if pACorrect != 1:
-            if MNKey in explicitOACorrect:
-                if fragKey in explicitOACorrect[MNKey]:
+            if MNKey in explicitOCorrect:
+                if fragKey in explicitOCorrect[MNKey]:
                     corrected = True
-                    v = np.random.normal(explicitOACorrect[MNKey][fragKey]['Mu,Sigma'][0], explicitOACorrect[MNKey][fragKey]['Mu,Sigma'][1])
-                    if 'Bounds' in explicitOACorrect[MNKey][fragKey]:
-                        if v <= explicitOACorrect[MNKey][fragKey]['Bounds'][0]:
-                            v = explicitOACorrect[MNKey][fragKey]['Bounds'][0]
+                    v = np.random.normal(explicitOCorrect[MNKey][fragKey]['Mu,Sigma'][0], explicitOCorrect[MNKey][fragKey]['Mu,Sigma'][1])
+                    if 'Bounds' in explicitOCorrect[MNKey][fragKey]:
+                        if v <= explicitOCorrect[MNKey][fragKey]['Bounds'][0]:
+                            v = explicitOCorrect[MNKey][fragKey]['Bounds'][0]
 
-                        if v >= explicitOACorrect[MNKey][fragKey]['Bounds'][1]:
-                            v = explicitOACorrect[MNKey][fragKey]['Bounds'][1]
+                        if v >= explicitOCorrect[MNKey][fragKey]['Bounds'][1]:
+                            v = explicitOCorrect[MNKey][fragKey]['Bounds'][1]
 
                     
                     variableOCorrect[MNKey][fragKey] = v
@@ -448,7 +448,7 @@ def GJElim(Matrix, augMatrix = False, AugAmount = 1, store = False, sanitize = F
     return M, rank, storage
 
 def M1MonteCarlo(standardData, sampleData, OCorrection, isotopologuesDict, fragmentationDictionary, N = 100, GJ = False, debugMatrix = False, includeSubs = [], omitSubs = [], disableProgress = False, theory = True, perturbTheoryOAmt = 0.002, experimentalOCorrectList = [], abundanceCorrect = True, debugUnderconstrained = True, plotUnconstrained = False,
-                storePerturbedSamples = False, storeOCorrect = False, explicitOACorrect = {}, perturbOverrideList = []):
+                storePerturbedSamples = False, storeOCorrect = False, explicitOCorrect = {}, perturbOverrideList = []):
     '''
     The Monte Carlo routine which is applied to M+1 measurements. This perturbs sample, standard, and M+N Relative abundance corrections N times, constructing and solving the matrix each time and recording the M+N Relative abundances. If the solution is underconstrained, it will also attempt to discover which specific isotopologues are not solved for and output this information to the user. 
     
@@ -473,7 +473,8 @@ def M1MonteCarlo(standardData, sampleData, OCorrection, isotopologuesDict, fragm
         plotUnconstrained: If True, outputs a plot of the null space to visualize how sites covary with each other in the null space. 
         storePerturbedSamples: An option to store the perturbed samples from each step of the MC for further investigation.
         perturbOverrideList: perturbSample will automatically perturb all sample acquisitions (M1, M2, M3, M4); in some cases, e.g. when doing an iterated correction for M1, we do not want to perturb all, only M1. This can be specified with this list. (E.g. ['M1']) 
-        
+        explicitOCorrect: For each MNKey and each fragment, may define specific bounds on reasonable O correction values. 
+
     Outputs:
         results: A dictionary, with GJ and NUMPY as keys. Each is keyed to a list of solutions from those respective algorithms. 
     '''
@@ -484,10 +485,10 @@ def M1MonteCarlo(standardData, sampleData, OCorrection, isotopologuesDict, fragm
     
     variableOCorrect = copy.deepcopy(OCorrection)
     for i in tqdm(range(N), disable = disableProgress):
-        variableOCorrect = modifyOValueCorrection(OCorrection, variableOCorrect, MNKey, explicitOACorrect = explicitOACorrect, amount = perturbTheoryOAmt)
+        variableOCorrect = modifyOValueCorrection(OCorrection, variableOCorrect, MNKey, explicitOCorrect = explicitOCorrect, amount = perturbTheoryOAmt)
         std = perturbStandard(standardData, theory = theory)
         
-        perturbedSample = perturbSample(sampleData, std, variableOCorrect, experimentalOCorrectList = experimentalOCorrectList,abundanceCorrect = abundanceCorrect,explicitOACorrect = explicitOACorrect, perturbOverrideList = perturbOverrideList)
+        perturbedSample = perturbSample(sampleData, std, variableOCorrect, experimentalOCorrectList = experimentalOCorrectList,abundanceCorrect = abundanceCorrect,explicitOCorrect = explicitOCorrect, perturbOverrideList = perturbOverrideList)
         
         smp = perturbedSample['M1']
        
@@ -586,7 +587,7 @@ def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False
         processedResults: A dictionary, containing lists of the results from every Monte Carlo solution for many variables of interest.             
     '''
     MNKey = "M1"
-    processedResults = {'PDB etc. Deltas':[],'Relative Deltas':[],'M1 Relative Abundance':[],'UM1':[],'Calc U Values':[]}
+    processedResults = {'PDB etc. Deltas':[],'Relative Deltas':[],MNKey + ' M+N Relative Abundance':[],'UM1':[],'Calc U Values':[]}
     string = "NUMPY"
     if GJ:
         string = "GJ"
@@ -594,7 +595,7 @@ def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False
     out = isotopologuesDict['M1'][['Number','Stochastic','Composition','Stochastic U','Precise Identity']].copy()
     
     for res in tqdm(M1Results[string], disable = disableProgress):
-        out['M1 Relative Abundance'] = res
+        out[MNKey + ' M+N Relative Abundance'] = res
         
         #Perturb U Values
         UPerturb = PerturbUValue(UValuesSmp)
@@ -603,7 +604,7 @@ def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False
         UM1 = calcUMN(MNKey, out, UPerturb, UMNSub = UMNSub)
 
         out['UM1'] = UM1
-        out['Calc U Values'] = out['M1 Relative Abundance'] * out['UM1']
+        out['Calc U Values'] = out[MNKey + ' M+N Relative Abundance'] * out['UM1']
         
         #The Isotopologues Dataframe has the substitutions in a different order than the site-specific dataframe. 
         #This section reassigns the solutions of the isotopologues dataframe to the right order for the 
@@ -615,7 +616,7 @@ def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False
             identity = v['Precise Identity'].split(' ')[1]
             index = list(df.index).index(identity)
 
-            M1[index] = v['M1 Relative Abundance']
+            M1[index] = v[MNKey + ' M+N Relative Abundance']
             UM1[index] = v['UM1']
             U[index] = v['Calc U Values']
 
@@ -631,7 +632,7 @@ def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False
 
         processedResults['PDB etc. Deltas'].append(smpDeltasAbs)
         processedResults['Relative Deltas'].append(relSmpStdDeltas)
-        processedResults['M1 Relative Abundance'].append(M1)
+        processedResults[MNKey + ' M+N Relative Abundance'].append(M1)
         processedResults['UM1'].append(UM1)
         processedResults['Calc U Values'].append(U)
         
