@@ -7,8 +7,8 @@ This code takes care of basic manipulations between delta, ratio, and concentrat
                                                                                                                        
 
 #DEFINE STANDARDS
-#Doubly isotopic atoms are given as standard ratios. The standards are: PDB for carbon, AIR for nitrogen, VSMOW for H/O, and CDT for sulfur. 
-STD_Rs = {"H": 0.00015576, "C": 0.0112372, "N": 0.003676, "17O": 0.0003799, "18O": 0.0020052,
+#Doubly isotopic atoms are given as standard ratios. The standards are: VPDB for carbon, AIR for nitrogen, VSMOW for H/O, and CDT for sulfur. 
+STD_Rs = {"H": 0.00015576, "C": 0.011180, "N": 0.003676, "17O": 0.0003799, "18O": 0.0020052,
          "33S":0.007877,"34S":0.0441626,"36S":0.000105274}
     
 def deltaToConcentration(atomIdentity,delta):
@@ -181,7 +181,7 @@ def ratioToDelta(atomIdentity, ratio):
 
 def compareRelDelta(atomID, deltaStd, deltaSmp):
     '''
-    Given at atom ID and two deltas in PDB etc. space, finds their relative difference (not in PDB etc. space). This is useful for making sample standard comparisons. 
+    Given at atom ID and two deltas in VPDB etc. space, finds their relative difference (not in VPDB etc. space). This is useful for making sample standard comparisons. 
     
     Inputs:
         atomID: A string, to be fed to deltaToConcentration

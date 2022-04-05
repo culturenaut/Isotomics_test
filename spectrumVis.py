@@ -9,13 +9,13 @@ import pandas as pd
 A set of functions for visualizing predicted spectra. These are useful when correlating observations with experimental data. 
 '''
 
-def fullSpectrumVis(df, byAtom, figsize = (10,4), lowAbundanceCutOff = 0, massError = 0, 
+def fullSpectrumVis(molecularDataFrame, byAtom, figsize = (10,4), lowAbundanceCutOff = 0, massError = 0, 
 xlim =(), ylim = ()):
     '''
     Visualizes the full spectrum (i.e. without fragmentation) based on the abundances of all isotopologues.
 
     Inputs:
-        df: A dataframe containing basic information about the molecule. 
+        molecularDataFrame: A dataframe containing basic information about the molecule. 
         byAtom: A dictionary containing the isotopolouges of the molecule and their abundances. See calcIsotopologues for details. 
         figsize: The output figure size. 
         lowAbundanceCutOff: Do not show peaks below this relative abundance.
@@ -30,7 +30,7 @@ xlim =(), ylim = ()):
     lowAbundanceCutOff = 0.00
     massError = 0.000
 
-    siteElements = ci.strSiteElements(df)
+    siteElements = ci.strSiteElements(molecularDataFrame)
     predictSpectrum = {}
     
     #calculates the mass of each isotopologue as well as its substitution. Adds its absolute concentration to the predicted 
@@ -82,13 +82,13 @@ xlim =(), ylim = ()):
         
     plt.show()
     
-def MNSpectrumVis(df, fragKey, predictedMeasurement, MNKey, MNDict, lowAbundanceCutOff = 0, 
+def MNSpectrumVis(molecularDataFrame, fragKey, predictedMeasurement, MNKey, MNDict, lowAbundanceCutOff = 0, 
 massError = 0, xlim = (), ylim = ()):
     '''
     Visualizes the fragmented spectrum of an M+N experiment based on the abundances of fragment peaks.
 
     Inputs:
-        df: A dataframe containing basic information about the molecule. 
+        molecularDataFrame: A dataframe containing basic information about the molecule. 
         fragKey: A string identifying the fragment, e.g. '133', '44'.
         predictedMeasurement: A dictionary giving information about the abundance of isotopic peaks in the fragment. See fragmentAndSimulate.predictMNFragmentExpt
         MNKey: A string identifying the mass selection to visualize; e.g. 'M1', 'M2'. This population of isotopologues is selected prior to fragmentation.
@@ -102,7 +102,7 @@ massError = 0, xlim = (), ylim = ()):
         None. Displays plot. 
     '''
     toShow = predictedMeasurement[MNKey][fragKey]
-    siteElements = ci.strSiteElements(df)
+    siteElements = ci.strSiteElements(molecularDataFrame)
     massPlot = []
     relAbundPlot = []
     subPlot = []

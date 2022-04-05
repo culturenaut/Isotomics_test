@@ -23,7 +23,7 @@ def initializeAlanine(deltas, fragSubset = ['full','44'], printHeavy = True):
         printHeavy: The user manually specifies delta 17O, and delta 18O is set via mass scaling (see basicDeltaOperations). If True, this will print out delta 18O.
 
     Outputs:
-        df: A dataframe containing basic information about the molecule. 
+        molecularDataFrame: A dataframe containing basic information about the molecule. 
         expandedFrags: An ATOM depiction of each fragment, where an ATOM depiction has one entry for each atom (rather than for each site). See fragmentAndSimulate for details.
         fragSubgeometryKeys: A list of strings, e.g. 44_01, 44_02, corresponding to each subgeometry of each fragment. A fragment will have multiple subgeometries if there are multiple fragmentation pathways to form it.
         fragmentationDictionary: A dictionary like the allFragments variable, but only including the subset of fragments selected by fragSubset.
@@ -51,9 +51,9 @@ def initializeAlanine(deltas, fragSubset = ['full','44'], printHeavy = True):
     
     expandedFrags = [fas.expandFrag(x, numberAtSite) for x in condensedFrags]
     
-    df = pd.DataFrame(l, columns = IDList)
-    df = df.transpose()
-    df.columns = cols
+    molecularDataFrame = pd.DataFrame(l, columns = IDList)
+    molecularDataFrame = molecularDataFrame.transpose()
+    molecularDataFrame.columns = cols
     
     if printHeavy:
         OConc = op.deltaToConcentration('O',deltas[2])
@@ -62,15 +62,15 @@ def initializeAlanine(deltas, fragSubset = ['full','44'], printHeavy = True):
         print("Delta 18O")
         print(del18)
     
-    return df, expandedFrags, fragSubgeometryKeys, fragmentationDictionary
+    return molecularDataFrame, expandedFrags, fragSubgeometryKeys, fragmentationDictionary
 
-def simulateMeasurement(df, fragmentationDictionary, expandedFrags, fragSubgeometryKeys, abundanceThreshold = 0, UValueList = [],
+def simulateMeasurement(molecularDataFrame, fragmentationDictionary, expandedFrags, fragSubgeometryKeys, abundanceThreshold = 0, UValueList = [],
                         massThreshold = 1, clumpD = {}, outputPath = None, disableProgress = False, calcFF = False, fractionationFactors = {}, omitMeasurements = {}, ffstd = 0.05, unresolvedDict = {}, outputFull = False):
     '''
-    Simulates M+N measurements of an alanine molecule with input deltas specified by the input dataframe df. 
+    Simulates M+N measurements of an alanine molecule with input deltas specified by the input dataframe molecularDataFrame. 
 
     Inputs:
-        df: A dataframe containing basic information about the molecule. 
+        molecularDataFrame: A dataframe containing basic information about the molecule. 
         expandedFrags: An ATOM depiction of each fragment, where an ATOM depiction has one entry for each atom (rather than for each site). See fragmentAndSimulate for details.
         fragSubgeometryKeys: A list of strings, e.g. 44_01, 44_02, corresponding to each subgeometry of each fragment. A fragment will have multiple subgeometries if there are multiple fragmentation pathways to form it.
         fragmentationDictionary: A dictionary like the allFragments variable, but only including the subset of fragments selected by fragSubset.
@@ -94,22 +94,22 @@ def simulateMeasurement(df, fragmentationDictionary, expandedFrags, fragSubgeome
 
     '''
     
-    byAtom = ci.inputToAtomDict(df, disable = disableProgress)
+    byAtom = ci.inputToAtomDict(molecularDataFrame, disable = disableProgress)
     
     #Introduce any clumps of interest with clumps
     if clumpD == {}:
-        bySub = ci.calcSubDictionary(byAtom, df, atomInput = True)
+        bySub = ci.calcSubDictionary(byAtom, molecularDataFrame, atomInput = True)
     else:
         print("Adding clumps")
         stochD = copy.deepcopy(byAtom)
         
         for clumpNumber, clumpInfo in clumpD.items():
-            byAtom = ci.introduceClump(byAtom, clumpInfo['Sites'], clumpInfo['Amount'], df)
+            byAtom = ci.introduceClump(byAtom, clumpInfo['Sites'], clumpInfo['Amount'], molecularDataFrame)
             
         for clumpNumber, clumpInfo in clumpD.items():
-            ci.checkClumpDelta(clumpInfo['Sites'], df, byAtom, stochD)
+            ci.checkClumpDelta(clumpInfo['Sites'], molecularDataFrame, byAtom, stochD)
             
-        bySub = ci.calcSubDictionary(byAtom, df, byAtom = True)
+        bySub = ci.calcSubDictionary(byAtom, molecularDataFrame, byAtom = True)
     
     #Initialize Measurement output
     print("Simulating Measurement")
@@ -118,10 +118,10 @@ def simulateMeasurement(df, fragmentationDictionary, expandedFrags, fragSubgeome
                                               subList = UValueList)
 
     MN = ci.massSelections(byAtom, massThreshold = massThreshold)
-    MN = fas.trackMNFragments(MN, expandedFrags, fragSubgeometryKeys, df, unresolvedDict = unresolvedDict)
+    MN = fas.trackMNFragments(MN, expandedFrags, fragSubgeometryKeys, molecularDataFrame, unresolvedDict = unresolvedDict)
         
     predictedMeasurement, fractionationFactors = fas.predictMNFragmentExpt(allMeasurementInfo, MN, expandedFrags, 
-                                                                           fragSubgeometryKeys, df, 
+                                                                           fragSubgeometryKeys, molecularDataFrame, 
                                                  fragmentationDictionary, calcFF = calcFF, ffstd = ffstd,
                                                  abundanceThreshold = abundanceThreshold, fractionationFactors = fractionationFactors, omitMeasurements = omitMeasurements, unresolvedDict = unresolvedDict, outputFull = outputFull)
     

@@ -96,7 +96,7 @@ def perturbSampleCorrectionFactors(perturbedSample, perturbedStandard, renormali
             
 def perturbSampleOCorrection(correctedSample, OCorrection, perturbOverrideList = []):
     '''
-    Applies M+N Relative abundance correction factors to the sample (see TEST 6-8). These factors scale the observed M+N Relative abundances to correct for unobserved peaks. 
+    Applies M+N Relative abundance correction factors to the sample. These factors scale the observed M+N Relative abundances to correct for unobserved peaks. 
     
     Inputs:
         correctedSample: A dictionary, the output of perturbSampleCorrectionFactors. Keys are mass selections, then fragment keys. Contains information about observed abundance and substitutions. 
@@ -122,7 +122,9 @@ def perturbSampleOCorrection(correctedSample, OCorrection, perturbOverrideList =
             
     return OCorrectedSample
 
-def perturbSample(sampleData, perturbedStandard, OCorrection, experimentalOCorrectList = [], correctionFactors = True, abundanceCorrect = True, explicitOCorrect = {}, perturbOverrideList = []):
+def perturbSample(sampleData, perturbedStandard, OCorrection, experimentalOCorrectList = [], 
+                    correctionFactors = True, abundanceCorrect = True, explicitOCorrect = {}, 
+                    perturbOverrideList = []):
     '''
     Takes sample data and perturbs it multiple ways--first perturbs experimental error, then applies (fractionation) correction factors, then applies M+N Relative abundance correction factors. Finally processes the perturbed sample into a dataframe to be looped into the matrix solver. 
     
@@ -254,7 +256,7 @@ def modifyOValueCorrection(OValueCorrection, variableOCorrect, MNKey, explicitOC
 
 def experimentalOCorrection(MNKey, fragToCorrect, subToCorrect, perturbedSample, OValueCorrection, fragsToBenchmarkFrom):
     '''
-    A complicated procedure to generate experimental (more accurate) M+N Relative abundance correction factors in some fringe cases.  If you don't have a good understanding of what this is trying to do, you probably should not be using it. Review the theory paper TEST 7-8. 
+    A complicated procedure to generate experimental M+N Relative abundance correction factors in some fringe cases.  If you don't have a good understanding of what this is trying to do, you probably should not be using it.
     
     Inputs:
         MNKey: "M1", "M2", etc.
@@ -471,7 +473,7 @@ def M1MonteCarlo(standardData, sampleData, OCorrection, isotopologuesDict, fragm
         omitSubs: A list of isotopes, if we wish to omit certain isotopes from the matrix. If it is nonempty, isotopes in the list will not be included in the matrix. Generally should be empty. 
         disableProgress: A boolean; true disables the tqdm bars.
         theory: A boolean, determines whether to calculate fractionation factors from the forward model. Should generally be set to True. 
-        perturbTheoryOAmt: A float. For each run of the Monte Carlo, the prtvrnt sbundance correction factors can be perturbed; this may be useful because the factors are only known approximately, so this well better estimate error. 0.001 and 0.002 have been useful values before, but it may depend on the system of interest. See TEST 6. 
+        perturbTheoryOAmt: A float. For each run of the Monte Carlo, the prtvrnt sbundance correction factors can be perturbed; this may be useful because the factors are only known approximately, so this well better estimate error. 0.001 and 0.002 have been useful values before, but it may depend on the system of interest.
         experimentalOCorrectList: A list, containing information about which peaks to use experimental, rather than theoretical, M+N Relative abundance corrections.
         abundanceCorrect: A boolean, determines whether to apply observed abundance correction. 
         debugUnderconstrained: If True, attempts to find the null space of the Gauss-Jordan solution to output which sites are well constrained (do not vary with the null space).
@@ -575,7 +577,7 @@ def calcUMN(MNKey, dataFrame, UPerturb, UMNSub = []):
     
     return UMN
 
-def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False, disableProgress = False, UMNSub = []):
+def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  molecularDataFrame, GJ = False, disableProgress = False, UMNSub = []):
     '''
     Processes results of M1 Monte Carlo, converting the M+N Relative abundances into delta space and reordering to match the order of the original input dataframe. 
     
@@ -583,7 +585,7 @@ def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False
         M1Results: A dictionary containing the M1 results from the M1 Monte Carlo routine. 
         UValuesSmp: A dictionary where keys isotopes and their values dictionaries giving their measured U Value and the error on that measurement. 
         isotopologuesDict: A dictionary with keys giving mass selections ("M1", "M2", etc.) and values of dataFrames giving the isotopologues for that mass selection.
-        df: The site-specific dataFrame, i.e. the original input
+        molecularDataFrame: The site-specific dataFrame, i.e. the original input
         GJ: A boolean; if true, looks in the M1Results dictionary for GJ results, rather than NUMPY results. 
         disableProgress: A boolean; if True, disables progress bar. 
         UMNSub: A list of strings; the strings correspond to isotopes ('13C', '15N') used to calculate the U^M+1 value. Care needs to be taken--if certain isotopologues corresponding to these substitutions are not fully constrained, the routine will fail. This is one reason why it is important to check with a synthetic dataset first, to ensure the procedure works! A later update of this code should check automatically to see if this fails. 
@@ -592,7 +594,7 @@ def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False
         processedResults: A dictionary, containing lists of the results from every Monte Carlo solution for many variables of interest.             
     '''
     MNKey = "M1"
-    processedResults = {'PDB etc. Deltas':[],'Relative Deltas':[],MNKey + ' M+N Relative Abundance':[],'UM1':[],'Calc U Values':[]}
+    processedResults = {'VPDB etc. Deltas':[],'Relative Deltas':[],MNKey + ' M+N Relative Abundance':[],'UM1':[],'Calc U Values':[]}
     string = "NUMPY"
     if GJ:
         string = "GJ"
@@ -619,23 +621,23 @@ def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False
         U = [0] * len(out.index)
         for i, v in out.iterrows():
             identity = v['Precise Identity'].split(' ')[1]
-            index = list(df.index).index(identity)
+            index = list(molecularDataFrame.index).index(identity)
 
             M1[index] = v[MNKey + ' M+N Relative Abundance']
             UM1[index] = v['UM1']
             U[index] = v['Calc U Values']
 
         #calculate relevant information
-        normM1 = U / df['Number']
+        normM1 = U / molecularDataFrame['Number']
         #This gives deltas in absolute reference frame
-        smpDeltasAbs = [op.ratioToDelta(x,y) for x, y in zip(df['IDS'], normM1)]
+        smpDeltasAbs = [op.ratioToDelta(x,y) for x, y in zip(molecularDataFrame['IDS'], normM1)]
         
-        appxStd = df['deltas']
+        appxStd = molecularDataFrame['deltas']
         
         #This gives deltas relative to standard
-        relSmpStdDeltas = [op.compareRelDelta(atomID, delta1, delta2) for atomID, delta1, delta2 in zip(df['IDS'], appxStd, smpDeltasAbs)]
+        relSmpStdDeltas = [op.compareRelDelta(atomID, delta1, delta2) for atomID, delta1, delta2 in zip(molecularDataFrame['IDS'], appxStd, smpDeltasAbs)]
 
-        processedResults['PDB etc. Deltas'].append(smpDeltasAbs)
+        processedResults['VPDB etc. Deltas'].append(smpDeltasAbs)
         processedResults['Relative Deltas'].append(relSmpStdDeltas)
         processedResults[MNKey + ' M+N Relative Abundance'].append(M1)
         processedResults['UM1'].append(UM1)
@@ -643,19 +645,19 @@ def processM1MCResults(M1Results, UValuesSmp, isotopologuesDict,  df, GJ = False
         
     return processedResults
 
-def updateSiteSpecificDfM1MC(processedResults, df):
+def updateSiteSpecificDfM1MC(processedResults, molecularDataFrame):
     '''
     Adds the processed M1MC results to the original dataframe. 
     
     Inputs:
         processedResults: A dictionary, containing lists of the results from every Monte Carlo solution for many variables of interest.    
-        df: The site-specific dataFrame, i.e. the original input
+        molecularDataFrame: The site-specific dataFrame, i.e. the original input
     '''
     for key in processedResults.keys():
-        df[key] = np.array(processedResults[key]).T.mean(axis = 1)
-        df[key + ' Error'] = np.array(processedResults[key]).T.std(axis = 1)
+        molecularDataFrame[key] = np.array(processedResults[key]).T.mean(axis = 1)
+        molecularDataFrame[key + ' Error'] = np.array(processedResults[key]).T.std(axis = 1)
         
-    return df
+    return molecularDataFrame
 
 def MonteCarloMN(MNKey, Isotopologues, standardData, sampleData, OCorrection, 
                  fragmentationDictionary, N = 10, includeSubs = [], omitSubs = [], disableProgress = False, perturbTheoryOAmt = 0,abundanceCorrect = True):
@@ -678,7 +680,7 @@ def MonteCarloMN(MNKey, Isotopologues, standardData, sampleData, OCorrection,
         includeSubs: A list of isotopes, if we want to include only certain isotopes in the matrix. If it is nonempty, only isotopes in the list will be included in the matrix. Generally should be empty. 
         omitSubs: A list of isotopes, if we wish to omit certain isotopes from the matrix. If it is nonempty, isotopes in the list will not be included in the matrix. Generally should be empty. 
         disableProgress: A boolean; true disables the tqdm bars.
-        perturbTheoryOAmt: A float. For each run of the Monte Carlo, the prtvrnt sbundance correction factors can be perturbed; this may be useful because the factors are only known approximately, so this well better estimate error. 0.001 and 0.002 have been useful values before, but it may depend on the system of interest. See TEST 6. 
+        perturbTheoryOAmt: A float. For each run of the Monte Carlo, the prtvrnt sbundance correction factors can be perturbed; this may be useful because the factors are only known approximately, so this well better estimate error. 0.001 and 0.002 have been useful values before, but it may depend on the system of interest.
         abundanceCorrect: A boolean, determines whether to apply observed abundance correction factors. 
         
     Outputs:
@@ -710,7 +712,7 @@ def MonteCarloMN(MNKey, Isotopologues, standardData, sampleData, OCorrection,
         
     return res, comp, solve, meas
 
-def processMNMonteCarloResults(MNKey, results, UValuesSmp, dataFrame, df, MNDictStd, UMNSub = [], disableProgress = False):
+def processMNMonteCarloResults(MNKey, results, UValuesSmp, dataFrame, molecularDataFrame, MNDictStd, UMNSub = [], disableProgress = False):
     '''
     Given solutions from the GJ solver monte carlo routine and a dataFrame listing which isotopologues correspond to each solution, calculates M+N Relative abundances. Then perturbs and applies a UMN value and calculates deltas and clumped deltas. Stores these values in a dictionary for statistics to be run on them. 
     
@@ -720,7 +722,7 @@ def processMNMonteCarloResults(MNKey, results, UValuesSmp, dataFrame, df, MNDict
         UValuesSmp: A dictionary where keys are isotopes and values are dictionaries; the interior keys are 
         "Observed" and "Error".
         dataFrame: A dataFrame with the isotopologues corresponding to each of the GJ solutions. 
-        df: A dataframe with basic information about the sites of the molecule. 
+        molecularDataFrame: A dataframe with basic information about the sites of the molecule. 
         MNDictStd: A dictionary, where keys are MN Keys and values are dataframes containing the isotopologues and their concentrations for the calculated standard. 
         UMNSub: A list of substitutions to use to calculate the UMN values. 
         disableProgress: Set True to disable tqdm progress bar
@@ -742,7 +744,7 @@ def processMNMonteCarloResults(MNKey, results, UValuesSmp, dataFrame, df, MNDict
         dataFrame['U' + MNKey] = UMN
         dataFrame['U Values'] = dataFrame[MNKey + ' M+N Relative Abundance'] * dataFrame['U' + MNKey]
 
-        dataFrame = computeMNUValues(dataFrame, MNKey, df, applyUMN = False)
+        dataFrame = computeMNUValues(dataFrame, MNKey, molecularDataFrame, applyUMN = False)
         dataFrame = updateRelClumpedDeltas(dataFrame, MNKey, MNDictStd)
 
         for key in processedResults:
@@ -751,16 +753,16 @@ def processMNMonteCarloResults(MNKey, results, UValuesSmp, dataFrame, df, MNDict
             
     return processedResults
 
-def computeMNUValues(MNSolution, MNKey, df, applyUMN = True, clumpU = False):
+def computeMNUValues(MNSolution, MNKey, molecularDataFrame, applyUMN = True, clumpU = False):
     '''
     Takes a dataframe containing the M+N Solution in M+N Relative abundance space, transfers these to U value space, and then calculates clumped and site-specific delta values from these U Values. 
     
     Inputs:
         MNSolution: A dataframe containing the M+N results in M+N Relative abundance space as well as the U^M+N value.
         MNKey: "M2", "M3", etc. 
-        df: The original dataframe containing information about sites of the molecule. 
+        molecularDataFrame: The original dataframe containing information about sites of the molecule. 
         applyUMN: A boolean, determines whether to calculate U Values using U^M+N or not.
-        clumpU: A boolean; set to True if applying some numerical routine to deal with large clumps (see TEST 2). 
+        clumpU: A boolean; set to True if applying some numerical routine to deal with large clumps.
         
     Outputs:
         MNSolution: The dataframe updated with clumped and site-specific deltas. 
@@ -785,9 +787,9 @@ def computeMNUValues(MNSolution, MNKey, df, applyUMN = True, clumpU = False):
             contributingAtoms = i.split(' & ')
             for atom in contributingAtoms:
                 ID = atom.split(' ')[1]
-                #df.index gives atom IDs, .index() function returns associated index
-                indexOfId = list(df.index).index(ID)
-                n += df['Number'][indexOfId]
+                #molecularDataFrame.index gives atom IDs, .index() function returns associated index
+                indexOfId = list(molecularDataFrame.index).index(ID)
+                n += molecularDataFrame['Number'][indexOfId]
 
 
             siteSpecificR = v[string] / n

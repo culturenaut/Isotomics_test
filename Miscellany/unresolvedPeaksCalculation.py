@@ -1,3 +1,12 @@
+import sys
+import os
+
+#Relative import .py files from the parent directory
+sys.path.insert(0,os.getcwd())
+
+#You can also try, but in some softwares it was not working for me
+#sys.path.insert(0, '..')
+
 import methionineTest as metTest
 import calcIsotopologues as ci
 import fragmentAndSimulate as fas

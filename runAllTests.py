@@ -13,8 +13,9 @@ today = date.today()
 This is our central .py file for running all of our simulations. It allows the user to specify different sets of parameters for each simulation, then runs all of these.
 '''
 #See 'conditions' dictionary, below. This list specifies a subset of our tests that we will actually run this time. 
-toRun = ['PerfectMeasurement']
-#toRun = ['PerfectMeasurement','ExpError','InstFrac','LowAbund','Unresolved','AllIssue']
+#toRun = ['PerfectMeasurement']
+#Note: 'PerfectMeasurement', 'ExpError', & 'InstFrac' take substantially longer than the other tests because they include all the isotopologues, rather than a fraction of these, and doing so makes matrix inversion very costly. 
+toRun = ['PerfectMeasurement','ExpError','InstFrac','LowAbund','Unresolved','AllIssue']
 
 #Use this for experimentalOCorrection; you can define a list experimentalOCorrectList containing any of these dictionaries, if you wish to use the experimental correction.
 sixtyOneCorrect = {'MNKey':'M1','fragToCorrect':'61','subToCorrect':'33S','fragsToBenchmarkFrom':['104']}
@@ -58,6 +59,8 @@ explicitOCorrect: Currently not used; allows us to specify explicit bounds or ot
 NUpdates: If we run an iterated O Correction procedure, this specifies the number of iterations used. NUpdates = 30-50 has worked effectively for methionine. 
 abundanceCorrect: A boolean, specifying whether to perform an O correction at all. 
 '''
+#Can show forward model standardization is exact when instrument fractionation is the only issue
+#by modifying 'InstFrac' to have no experimental error and use knownStd for 'forwardModelDeltas'.
 conditions = {'PerfectMeasurement':{'abundanceThreshold':0,'massThreshold':4, 'saveInput' : True, 'saveOutput' : True,
                         'calcFF':False,'forwardModelDeltas':knownStd,
                         'forbiddenPeaks':{},'unresolvedDict':{},
@@ -122,11 +125,11 @@ for testKey, testData in conditions.items():
     print("Calculating Sample Data")
     deltasSmp = [-45,-35,-30,-25,-13,2.5,10,-250,-100,0,100,250,0]
     fragSubset = ['full','133','104','102','61','56']
-    df, expandedFrags, fragSubgeometryKeys, fragmentationDictionary = metTest.initializeMethionine(deltasSmp, fragSubset,
+    molecularDataFrame, expandedFrags, fragSubgeometryKeys, fragmentationDictionary = metTest.initializeMethionine(deltasSmp, fragSubset,
                                                                                                   printHeavy = False)
 
 
-    predictedMeasurementSmp, MNDictSmp, FFSmp = metTest.simulateMeasurement(df, fragmentationDictionary, expandedFrags,
+    predictedMeasurementSmp, MNDictSmp, FFSmp = metTest.simulateMeasurement(molecularDataFrame, fragmentationDictionary, expandedFrags,
                                                                    fragSubgeometryKeys,
                                                        abundanceThreshold = testData['abundanceThreshold'],
                                                        massThreshold = testData['massThreshold'],
@@ -139,10 +142,10 @@ for testKey, testData in conditions.items():
     #Standard
     print("Calculating Standard Data")
     deltasStd = [-30,-30,-30,-30,0,0,0,0,0,0,0,0,0]
-    df, expandedFrags, fragSubgeometryKeys, fragmentationDictionary = metTest.initializeMethionine(deltasStd, fragSubset,
+    molecularDataFrame, expandedFrags, fragSubgeometryKeys, fragmentationDictionary = metTest.initializeMethionine(deltasStd, fragSubset,
                                                                                                   printHeavy = False)
 
-    predictedMeasurementStd, MNDictStd, FFStd = metTest.simulateMeasurement(df, fragmentationDictionary, expandedFrags,
+    predictedMeasurementStd, MNDictStd, FFStd = metTest.simulateMeasurement(molecularDataFrame, fragmentationDictionary, expandedFrags,
                                                                             fragSubgeometryKeys,
                                                        abundanceThreshold = testData['abundanceThreshold'],
                                                        massThreshold = testData['massThreshold'],
@@ -154,9 +157,9 @@ for testKey, testData in conditions.items():
     
     #Forward Model of Standard
     print("Calculating Forward Model")
-    df, expandedFrags, fragSubgeometryKeys, fragmentationDictionary = metTest.initializeMethionine(testData['forwardModelDeltas'], fragSubset, printHeavy = False)
+    molecularDataFrame, expandedFrags, fragSubgeometryKeys, fragmentationDictionary = metTest.initializeMethionine(testData['forwardModelDeltas'], fragSubset, printHeavy = False)
     
-    predictedMeasurementFMStd, MNDictFMStd, FFFM = metTest.simulateMeasurement(df, fragmentationDictionary, expandedFrags,
+    predictedMeasurementFMStd, MNDictFMStd, FFFM = metTest.simulateMeasurement(molecularDataFrame, fragmentationDictionary, expandedFrags,
                                                                   fragSubgeometryKeys, 
                                                    abundanceThreshold = 0,
                                                    massThreshold = testData['massThreshold'],
@@ -172,7 +175,7 @@ for testKey, testData in conditions.items():
 
     #solve M+1
     print("Solving M+1")
-    isotopologuesDict = fas.isotopologueDataFrame(MNDictFMStd, df)
+    isotopologuesDict = fas.isotopologueDataFrame(MNDictFMStd, molecularDataFrame)
     OCorrection = ss.OValueCorrectTheoretical(predictedMeasurementFMStd, processSample, massThreshold = testData['massThreshold'])
 
     M1Results = ss.M1MonteCarlo(processStandard, processSample, OCorrection, isotopologuesDict,
@@ -187,14 +190,14 @@ for testKey, testData in conditions.items():
     perturbedSamples[testKey] = M1Results['Extra Info']['Perturbed Samples']
 
     #Process results from M+N relative abundance space to U value space, using the UM+1 value calculated via the sub(s) in UMNSub. 
-    processedResults = ss.processM1MCResults(M1Results, UValuesSmp, isotopologuesDict, df, disableProgress = True,
+    processedResults = ss.processM1MCResults(M1Results, UValuesSmp, isotopologuesDict, molecularDataFrame, disableProgress = True,
                                             UMNSub = ['13C'])
     
     #Update the dataframe with results. 
-    ss.updateSiteSpecificDfM1MC(processedResults, df)
+    ss.updateSiteSpecificDfM1MC(processedResults, molecularDataFrame)
     
-    M1Df = df.copy()
-    M1Df['deltas'] = M1Df['PDB etc. Deltas']
+    M1Df = molecularDataFrame.copy()
+    M1Df['deltas'] = M1Df['VPDB etc. Deltas']
 
     oldDeltas = list(M1Df['deltas'])
     
@@ -205,7 +208,9 @@ for testKey, testData in conditions.items():
         iterateStandard = {key: value for (key, value) in processStandard.items() if key == 'M1'}
         iterateSample = {key: value for (key, value) in processSample.items() if key == 'M1'}
         
-        M1Results, thisODict  = metTest.updateAbundanceCorrection(oldDeltas, fragSubset, fragmentationDictionary, expandedFrags, fragSubgeometryKeys, iterateStandard, iterateSample, isotopologuesDict, UValuesSmp, df, deviation = 4, 
+        M1Results, thisODict  = metTest.updateAbundanceCorrection(oldDeltas, fragSubset, 
+        fragmentationDictionary, expandedFrags, fragSubgeometryKeys, iterateStandard, 
+        iterateSample, isotopologuesDict, UValuesSmp, molecularDataFrame, 
                               perturbTheoryOAmt = testData['perturbTheoryOAmtM1'], 
                               NUpdates = testData['NUpdates'], 
                               breakCondition = 1e-3,
@@ -221,15 +226,15 @@ for testKey, testData in conditions.items():
         ODict[testKey] = copy.deepcopy(thisODict)
         
     #Take the final result of the iterated correction scheme
-    processedResults = ss.processM1MCResults(M1Results, UValuesSmp, isotopologuesDict, df, disableProgress = True,
+    processedResults = ss.processM1MCResults(M1Results, UValuesSmp, isotopologuesDict, molecularDataFrame, disableProgress = True,
                                     UMNSub = ['13C'])
     
     #update dataframe with M1 data
-    ss.updateSiteSpecificDfM1MC(processedResults, df)
+    ss.updateSiteSpecificDfM1MC(processedResults, molecularDataFrame)
     
     #Recalculate forward model using optimized M+1 data to inform stochastic reference frame for M+2, M+3, M+4 
-    M1Df = df.copy()
-    M1Df['deltas'] = M1Df['PDB etc. Deltas']
+    M1Df = molecularDataFrame.copy()
+    M1Df['deltas'] = M1Df['VPDB etc. Deltas']
     
     #recalculate to inform stochastic reference frame for MN
     print("Calculating Sample forward model")
@@ -262,7 +267,7 @@ for testKey, testData in conditions.items():
         actuallyConstrained = ss.findFullyConstrained(nullSpaceCycles)
         
         #Scale results to U values, update the dataframe.
-        processedResults = ss.processMNMonteCarloResults(MNKey, results, UValuesSmp, dfOutput, df, MNDictFMStd,
+        processedResults = ss.processMNMonteCarloResults(MNKey, results, UValuesSmp, dfOutput, molecularDataFrame, MNDictFMStd,
                                                         UMNSub = UMNSubs[MNKey], disableProgress = True)
         dfOutput = ss.updateMNMonteCarloResults(dfOutput, processedResults)
         MNSol[MNKey] = dfOutput.loc[dfOutput.index.isin(actuallyConstrained)].copy()

@@ -172,7 +172,7 @@ def computeMass(isotopologue, IDs):
         
     return mass
 
-def predictMNFragmentExpt(allMeasurementInfo, MNDict, atomFragList, fragSubgeometryKeys, df, fragmentationDictionary, abundanceThreshold = 0, omitMeasurements = {}, fractionationFactors = {}, calcFF = False, ffstd = 0.05, randomseed = 25, unresolvedDict = {}, outputFull = False):
+def predictMNFragmentExpt(allMeasurementInfo, MNDict, atomFragList, fragSubgeometryKeys, molecularDataFrame, fragmentationDictionary, abundanceThreshold = 0, omitMeasurements = {}, fractionationFactors = {}, calcFF = False, ffstd = 0.05, randomseed = 25, unresolvedDict = {}, outputFull = False):
     '''
     Predicts the results of several M+N experiements across a range of mass selected populations and fragments. It incorporates the preceding functions into a whole, so you can just call this and get results.
     
@@ -181,7 +181,7 @@ def predictMNFragmentExpt(allMeasurementInfo, MNDict, atomFragList, fragSubgeome
         MNDict: A dictionary where the keys are "M0", "M1", etc. and the values are dictionaries containing all isotopologues from the ATOM dictionary with a specified cardinal mass difference. See massSelections function in calcIsotopologues.py
         atomFragList: A list of expanded fragments, one for each subgeometry, e.g. [[1, 1, 1, 1, 'x'], ['x', 1, 1, 1, 'x']]. See expandFrags function.
         fragSubgeometryKeys: A list of strings, indicating the identity of each fragment subgeometry. I.e. ['54_01','42_01']
-        df: A dataFrame containing information about the molecule.
+        molecularDataFrame: A dataFrame containing information about the molecule.
         fragmentationDictionary: A dictionary, e.g. {'full': {'01': {'subgeometry': [1, 1, 1, 1, 1, 1], 'relCont': 1}},
                                                      '44': {'01': {'subgeometry': [1, 'x', 'x', 1, 1, 'x'], 'relCont': 1}}}
                                  which gives information about the fragments, their subgeometries and relative contributions.
@@ -199,7 +199,7 @@ def predictMNFragmentExpt(allMeasurementInfo, MNDict, atomFragList, fragSubgeome
         calculatedFF: The calculated fractionation factors for this measurement (empty unless calcFF == True)
     '''
     calculatedFF = {}
-    siteElements = ci.strSiteElements(df)
+    siteElements = ci.strSiteElements(molecularDataFrame)
     np.random.seed(randomseed)
     #For each population (M1, M2, M3) that we mass select
     for massSelection, MN in MNDict.items():
@@ -367,7 +367,7 @@ def computeMNRelAbundances(allMeasurementInfo, omitMeasurements = {}, abundanceT
                 
     return allMeasurementInfo
 
-def trackMNFragments(MN, expandedFrags, fragSubgeometryKeys, df, unresolvedDict = {}):
+def trackMNFragments(MN, expandedFrags, fragSubgeometryKeys, molecularDataFrame, unresolvedDict = {}):
     '''
     Fragments and tracks isotopologues across a range of mass selections and fragments. 
     
@@ -375,7 +375,7 @@ def trackMNFragments(MN, expandedFrags, fragSubgeometryKeys, df, unresolvedDict 
         MN: A dictionary, where the key is an MNKey and the values give information about all isotopologues associated with that mass selection. 
         expandedFrags: A list of the expanded fragments
         fragSubgeometryKeys: A list of the fragment subgeometry keys 
-        df: The initial dataframe with information about the molecule
+        molecularDataFrame: The initial dataframe with information about the molecule
         unresolvedDict: A dictionary, specifying which unresolved ion beams add to each other. 
         
     Outputs:
@@ -387,11 +387,11 @@ def trackMNFragments(MN, expandedFrags, fragSubgeometryKeys, df, unresolvedDict 
     for key in list(MN.keys()):
         massSelection = MN[key]
         for i, fragment in enumerate(expandedFrags):
-            fragmentAndTrackIsotopologues(massSelection, fragment, fragSubgeometryKeys[i], UnsubConc, df, unresolvedDict = unresolvedDict)
+            fragmentAndTrackIsotopologues(massSelection, fragment, fragSubgeometryKeys[i], UnsubConc, molecularDataFrame, unresolvedDict = unresolvedDict)
             
     return MN
 
-def fragmentAndTrackIsotopologues(massSelection, atomFrag, fragmentKey, unsubConc, df, unresolvedDict = {}):
+def fragmentAndTrackIsotopologues(massSelection, atomFrag, fragmentKey, unsubConc, molecularDataFrame, unresolvedDict = {}):
     '''
     Fragments isotopologues and tracks which parent isotopologues end up in which product. For the version that combines isotopologues, for simulating measurements, see fragmentIsotopologueDict (that is, if 001 and 002 both form 00x on fragmentation, this function tracks 001 and 002 explictly; fragmentIsotopologueDict only reports 00x). This function fills in a dictionary with the isotopologues introduced to be fragmented by identifying the product and substitutions of each. 
     
@@ -400,13 +400,13 @@ def fragmentAndTrackIsotopologues(massSelection, atomFrag, fragmentKey, unsubCon
         atomFrag: An ATOM depiction fragment
         fragmentKey: A string giving the identity of the fragment. 
         unsubConc: The concentration of the unsubstituted isotopologue. 
-        df: A dataFrame containing information about the molecule.
+        molecularDataFrame: A dataFrame containing information about the molecule.
         unresolvedDict: {'133':{'17O':'13C'}}
         
     outputs:
         massSelection: The same dictionary, updated to include information about fragmentation. 
     '''
-    siteElements = ci.strSiteElements(df)
+    siteElements = ci.strSiteElements(molecularDataFrame)
     
     fragmentedDict = {}
     for isotopologue, value in massSelection.items():
@@ -426,20 +426,20 @@ def fragmentAndTrackIsotopologues(massSelection, atomFrag, fragmentKey, unsubCon
         
     return massSelection
 
-def isotopologueDataFrame(MNDictionary, df):
+def isotopologueDataFrame(MNDictionary, molecularDataFrame):
     '''
     Given a dictionary containing different mass selections, iterates through each mass selection. Extracts the isotopologues from each and puts them into a dataframe, identifying their concentration, substitution, as well as a long string giving a "precise identity", i.e. including explicit labels. Returns these as a dictionary with keys "M0", "M1", etc. where the values are dataFrames of the isotopologues. 
     
     Inputs:
         MNDictionary: A dictionary containing different mass selections, i.e. the output of fragmentAndTrackIsotopologues
-        df: A dataFrame containing information about the molecule.
+        molecularDataFrame: A dataFrame containing information about the molecule.
         
     Outputs:
         isotopologuesDict: A dictionary where the keys are "M0", "M1", etc. and the values are dataFrames giving the isotopologues with those substitutions. 
     '''
     
     isotopologuesDict = {}
-    siteElements = ci.strSiteElements(df)
+    siteElements = ci.strSiteElements(molecularDataFrame)
     
     for key in list(MNDictionary.keys()):
         massSelection = MNDictionary[key]
@@ -450,8 +450,8 @@ def isotopologueDataFrame(MNDictionary, df):
         preciseStrings = []
         
         expandedIndices = []
-        for i, n in enumerate(df.Number):
-            expandedIndices += n * [df.index[i]]
+        for i, n in enumerate(molecularDataFrame.Number):
+            expandedIndices += n * [molecularDataFrame.index[i]]
         
         for i, v in Isotopologues.iterrows():
             Subs = [ci.uEl(element, int(number)) for element, number in zip(siteElements, i)]

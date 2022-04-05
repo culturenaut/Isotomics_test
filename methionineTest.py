@@ -23,7 +23,7 @@ def initializeMethionine(deltas, fragSubset = ['full','133','104','102','88','74
         printHeavy: The user manually specifies delta 17O, and delta 18O is set via mass scaling (see basicDeltaOperations). If True, this will print out delta 18O, 34S, & 36S.
 
     Outputs:
-        df: A dataframe containing basic information about the molecule. 
+        molecularDataFrame: A dataframe containing basic information about the molecule. 
         expandedFrags: An ATOM depiction of each fragment, where an ATOM depiction has one entry for each atom (rather than for each site). See fragmentAndSimulate for details.
         fragSubgeometryKeys: A list of strings, e.g. 133_01, 133_02, corresponding to each subgeometry of each fragment. A fragment will have multiple subgeometries if there are multiple fragmentation pathways to form it.
         fragmentationDictionary: A dictionary like the allFragments variable, but only including the subset of fragments selected by fragSubset.
@@ -59,9 +59,9 @@ def initializeMethionine(deltas, fragSubset = ['full','133','104','102','88','74
             condensedFrags.append(subFragInfo['subgeometry'])
             fragKeys.append(fragKey + '_' + subFragNum)
 
-    df = pd.DataFrame(l, columns = IDList)
-    df = df.transpose()
-    df.columns = cols
+    molecularDataFrame = pd.DataFrame(l, columns = IDList)
+    molecularDataFrame = molecularDataFrame.transpose()
+    molecularDataFrame.columns = cols
 
     expandedFrags = [fas.expandFrag(x, numberAtSite) for x in condensedFrags]
 
@@ -80,15 +80,15 @@ def initializeMethionine(deltas, fragSubset = ['full','133','104','102','88','74
         print("Delta 18O")
         print(del18)
     
-    return df, expandedFrags, fragKeys, fragmentationDictionary
+    return molecularDataFrame, expandedFrags, fragKeys, fragmentationDictionary
 
-def simulateMeasurement(df, fragmentationDictionary, expandedFrags, fragKeys, abundanceThreshold = 0, UValueList = [],
+def simulateMeasurement(molecularDataFrame, fragmentationDictionary, expandedFrags, fragKeys, abundanceThreshold = 0, UValueList = [],
                         massThreshold = 4, clumpD = {}, outputPath = None, disableProgress = False, calcFF = False, fractionationFactors = {}, omitMeasurements = {}, ffstd = 0.05, unresolvedDict = {}, outputFull = False):
     '''
-    Simulates M+N measurements of a methionine molecule with input deltas specified by the input dataframe df. 
+    Simulates M+N measurements of a methionine molecule with input deltas specified by the input dataframe molecularDataFrame. 
 
     Inputs:
-        df: A dataframe containing basic information about the molecule. 
+        molecularDataFrame: A dataframe containing basic information about the molecule. 
         expandedFrags: An ATOM depiction of each fragment, where an ATOM depiction has one entry for each atom (rather than for each site). See fragmentAndSimulate for details.
         fragSubgeometryKeys: A list of strings, e.g. 133_01, 133_02, corresponding to each subgeometry of each fragment. A fragment will have multiple subgeometries if there are multiple fragmentation pathways to form it.
         fragmentationDictionary: A dictionary like the allFragments variable from initalizeMethionine, but only including the subset of fragments selected by fragSubset.
@@ -114,22 +114,22 @@ def simulateMeasurement(df, fragmentationDictionary, expandedFrags, fragKeys, ab
     if massThreshold == 1:
         M1Only = True
         
-    byAtom = ci.inputToAtomDict(df, disable = disableProgress, M1Only = M1Only)
+    byAtom = ci.inputToAtomDict(molecularDataFrame, disable = disableProgress, M1Only = M1Only)
     
     #Introduce any clumps of interest with clumps
     if clumpD == {}:
-        bySub = ci.calcSubDictionary(byAtom, df, atomInput = True)
+        bySub = ci.calcSubDictionary(byAtom, molecularDataFrame, atomInput = True)
     else:
         print("Adding clumps")
         stochD = copy.deepcopy(byAtom)
         
         for clumpNumber, clumpInfo in clumpD.items():
-            byAtom = ci.introduceClump(byAtom, clumpInfo['Sites'], clumpInfo['Amount'], df)
+            byAtom = ci.introduceClump(byAtom, clumpInfo['Sites'], clumpInfo['Amount'], molecularDataFrame)
             
         for clumpNumber, clumpInfo in clumpD.items():
-            ci.checkClumpDelta(clumpInfo['Sites'], df, byAtom, stochD)
+            ci.checkClumpDelta(clumpInfo['Sites'], molecularDataFrame, byAtom, stochD)
             
-        bySub = ci.calcSubDictionary(byAtom, df, atomInput = True)
+        bySub = ci.calcSubDictionary(byAtom, molecularDataFrame, atomInput = True)
     
     #Initialize Measurement output
     if disableProgress == False:
@@ -139,9 +139,9 @@ def simulateMeasurement(df, fragmentationDictionary, expandedFrags, fragKeys, ab
                                               subList = UValueList)
 
     MN = ci.massSelections(byAtom, massThreshold = massThreshold)
-    MN = fas.trackMNFragments(MN, expandedFrags, fragKeys, df, unresolvedDict = unresolvedDict)
+    MN = fas.trackMNFragments(MN, expandedFrags, fragKeys, molecularDataFrame, unresolvedDict = unresolvedDict)
         
-    predictedMeasurement, FF = fas.predictMNFragmentExpt(allMeasurementInfo, MN, expandedFrags, fragKeys, df, 
+    predictedMeasurement, FF = fas.predictMNFragmentExpt(allMeasurementInfo, MN, expandedFrags, fragKeys, molecularDataFrame, 
                                                  fragmentationDictionary,
                                                  abundanceThreshold = abundanceThreshold, calcFF = calcFF, ffstd = ffstd, fractionationFactors = fractionationFactors, omitMeasurements = omitMeasurements, unresolvedDict = unresolvedDict, outputFull = outputFull)
     
@@ -155,7 +155,7 @@ def simulateMeasurement(df, fragmentationDictionary, expandedFrags, fragKeys, ab
     return predictedMeasurement, MN, FF
 
 def updateAbundanceCorrection(latestDeltas, fragSubset, fragmentationDictionary, expandedFrags, 
-fragSubgeometryKeys, processStandard, processSample, isotopologuesDict, UValuesSmp, df,
+fragSubgeometryKeys, processStandard, processSample, isotopologuesDict, UValuesSmp, molecularDataFrame,
 NUpdates = 30, breakCondition = 1, perturbTheoryOAmt = 0.002,
                               experimentalOCorrectList = [],
                               abundanceThreshold = 0, 
@@ -189,7 +189,7 @@ NUpdates = 30, breakCondition = 1, perturbTheoryOAmt = 0.002,
         processSample: As processStandard, but the 'Predicted Abundance' terms will be an empty list.
         isotopologuesDict: isotopologuesDict: A dictionary where the keys are "M0", "M1", etc. and the values are dataFrames giving the isotopologues with those substitutions. 
         UValuesSmp: A dictionary specifying the molecular average U values and their errors, i.e. {'13C':'Observed':float,'Error':float}. See readInput.readComputedUValues
-        df: A dataFrame containing information about the molecule.
+        molecularDataFrame: A dataFrame containing information about the molecule.
         NUpdates: The maximum number of iterations to perform.
         breakCondition: Each iteration, a residual is calculated as the sum of squares between all delta values. If that sums is <break condition, the routine ends. 
         perturbTheoryOAmt: Each O correction is given as a mean and a sigma. Then for each iteration of the Monte Carlo, we draw a new factor from this distribution. This parameter determines the relative width, e.g. sigma = mean * perturbTheoryOAmt
@@ -230,7 +230,7 @@ NUpdates = 30, breakCondition = 1, perturbTheoryOAmt = 0.002,
                                                            unresolvedDict = unresolvedDict)
 
         #Generate new O Corrections
-        OCorrectionUpdate = ss.percentAbundanceCorrectTheoretical(predictedMeasurementUpdate, processSample, 
+        OCorrectionUpdate = ss.OValueCorrectTheoretical(predictedMeasurementUpdate, processSample, 
                                                          massThreshold = massThreshold)
 
         #For each O correction, generate a normal distribution. The computed value is the mean, and the sigma is set by perturbTheoryOAmt.
@@ -254,13 +254,13 @@ NUpdates = 30, breakCondition = 1, perturbTheoryOAmt = 0.002,
                                    storePerturbedSamples = False, storeOCorrect = True, 
                                    explicitOCorrect = explicitOCorrect, perturbOverrideList = ['M1'])
         
-        processedResults = ss.processM1MCResults(M1Results, UValuesSmp, isotopologuesDict, df, disableProgress = True,
+        processedResults = ss.processM1MCResults(M1Results, UValuesSmp, isotopologuesDict, molecularDataFrame, disableProgress = True,
                                         UMNSub = UMNSub)
     
-        ss.updateSiteSpecificDfM1MC(processedResults, df)
+        ss.updateSiteSpecificDfM1MC(processedResults, molecularDataFrame)
         
-        M1Df = df.copy()
-        M1Df['deltas'] = M1Df['PDB etc. Deltas']
+        M1Df = molecularDataFrame.copy()
+        M1Df['deltas'] = M1Df['VPDB etc. Deltas']
         
         thisODict['O'].append(copy.deepcopy(OCorrectionUpdate['M1']))
 
@@ -279,7 +279,7 @@ NUpdates = 30, breakCondition = 1, perturbTheoryOAmt = 0.002,
                        '133':[],
                        'full':[]}
         
-            for res in M1Results['Extra Info']['pA Correct']:
+            for res in M1Results['Extra Info']['O Correct']:
                 correctVals['full'].append(res['full'])
                 correctVals['133'].append(res['133'])
                 correctVals['61'].append(res['61'])
