@@ -22,6 +22,6 @@ There are some additional files which may be helpful:
 
 spectrumVis.py -- Allows one to predict the spectra resulting from different M+N measurements; useful in assigning peaks to newly observed data
 
-alanineTest/methionineTest.py -- Define wrapper functions which take care of most of the details in defining and simulating alanine and methionine datasets.
+alanineTest.py & methionineTest.py -- Define wrapper functions which take care of most of the details in defining and simulating alanine and methionine datasets.
 
 
