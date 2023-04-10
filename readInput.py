@@ -20,12 +20,11 @@ def readComputedData(JSONInput, error = 0, theory = {}):
     
     Inputs:
         JSONInput: The .json dictionary to input. 
-        error: The relative error to assign to each observed peak. 
+        error: The relative error to assign to each observed peak. Either an int/float, in which case it is the same for all observed peaks, or a dictionary, in which the relative error of each peak is set individually. If it is a dictionary, it is keyed via 'massSelection' then 'fragKey' then 'subKey', e.g. error = {'M1':{'44':{'13C':0.001,'2H':0.005,'15N':0.002}}}
         theory: A dictionary giving the predicted measurement in the abscence of any experimental errors. This is used to standardize in later steps. If the input is a Sample, should be left empty. 
  
     Outputs:
         process: A dictionary giving the processed .json file. Each fragment of each mass selection has a dictionary, specifying the substitutions, their observed abundances and errors, and for standards only, their predicted abundances. 
-    
     '''
     process = {}
     for massSelection, massSelectionData in JSONInput.items():
@@ -41,7 +40,13 @@ def readComputedData(JSONInput, error = 0, theory = {}):
                 for subKey, subData in fragData.items():
                     process[massSelection][fragKey]['Subs'].append(subKey)
                     process[massSelection][fragKey]['Observed Abundance'].append(subData['Adj. Rel. Abundance'])
-                    process[massSelection][fragKey]['Error'].append(error * subData['Adj. Rel. Abundance'])
+
+                    if type(error) == float or type(error) == int:
+                        thisError = error
+                    else:
+                        thisError = error[massSelection][fragKey][subKey]
+
+                    process[massSelection][fragKey]['Error'].append(thisError * subData['Adj. Rel. Abundance'])
                     
                     if theory != {}:
                         try:
